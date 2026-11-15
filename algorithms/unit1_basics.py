@@ -29,14 +29,59 @@ def _merge_sort(items: List[Dict[str, Any]], key: str) -> List[Dict[str, Any]]:
     return _merge(left, right, key)
 
 
+def _partition(arr: List[Dict[str, Any]], low: int, high: int, key: str) -> int:
+    pivot = arr[high][key]
+    i = low - 1
+
+    for j in range(low, high):
+        if arr[j][key] <= pivot:
+            i += 1
+            arr[i], arr[j] = arr[j], arr[i]
+
+    arr[i + 1], arr[high] = arr[high], arr[i + 1]
+    return i + 1
+
+
+def _quick_sort_recursive(arr: List[Dict[str, Any]], low: int, high: int, key: str) -> None:
+    if low < high:
+        pi = _partition(arr, low, high, key)
+        _quick_sort_recursive(arr, low, pi - 1, key)
+        _quick_sort_recursive(arr, pi + 1, high, key)
+
+
+def _quick_sort(items: List[Dict[str, Any]], key: str) -> List[Dict[str, Any]]:
+    if len(items) <= 1:
+        return list(items)
+
+    arr = list(items)
+    _quick_sort_recursive(arr, 0, len(arr) - 1, key)
+    return arr
+
+
 @measure_daa(
     algorithm="Merge Sort",
     unit="Unit I",
     complexity="O(n log n)",
-    input_size_fn=lambda items, *args, **kwargs: len(items),
+    input_size_fn=lambda *args, **kwargs: len(args[0]) if args else len(kwargs.get("items", [])),
 )
-def sort_items(items: List[Dict[str, Any]], key: str, method: str = "merge") -> Dict[str, Any]:
-    if method != "merge":
-        raise ValueError(f"Unsupported sorting method: '{method}'. Only 'merge' is supported.")
-
+def _sort_items_merge(items: List[Dict[str, Any]], key: str) -> List[Dict[str, Any]]:
     return _merge_sort(items, key)
+
+
+@measure_daa(
+    algorithm="Quick Sort",
+    unit="Unit I",
+    complexity="O(n log n) average case",
+    input_size_fn=lambda *args, **kwargs: len(args[0]) if args else len(kwargs.get("items", [])),
+)
+def _sort_items_quick(items: List[Dict[str, Any]], key: str) -> List[Dict[str, Any]]:
+    return _quick_sort(items, key)
+
+
+def sort_items(items: List[Dict[str, Any]], key: str, method: str = "merge") -> Dict[str, Any]:
+    if method == "merge":
+        return _sort_items_merge(items, key)
+    if method == "quick":
+        return _sort_items_quick(items, key)
+
+    raise ValueError(f"Unsupported sorting method: '{method}'. Only 'merge' and 'quick' are supported.")
