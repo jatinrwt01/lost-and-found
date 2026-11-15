@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+venv/
+
+# SQLite database files
+*.db
+*.db-wal
+*.db-shm
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
