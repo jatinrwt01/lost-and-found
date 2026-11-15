@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Smart Lost & Found{% endblock %} — Campus Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('items.feed') }}" class="brand">
+                <span class="brand-icon">🔍</span>
+                <span class="brand-title">Campus Lost & Found</span>
+                <span class="brand-tag">DAA Units I–IV</span>
+            </a>
+
+            <nav class="nav-links">
+                <a href="{{ url_for('items.feed') }}" class="nav-link">Feed</a>
+                <a href="{{ url_for('items.report_page') }}" class="nav-link">Report Item</a>
+                <a href="{{ url_for('campus.campus_map_page') }}" class="nav-link">Campus Map</a>
+                <a href="{{ url_for('campus.benchmarks_page') }}" class="nav-link">Benchmarks</a>
+                {% if is_admin %}
+                <a href="{{ url_for('admin.admin_dashboard') }}" class="nav-link admin-pill">Admin Suite</a>
+                {% endif %}
+            </nav>
+
+            <div class="nav-auth">
+                {% if is_authenticated %}
+                <div class="user-badge">
+                    <span class="user-role {{ current_role }}">{{ current_role|upper }}</span>
+                    <span class="user-name">{{ current_user }}</span>
+                    <a href="{{ url_for('auth.logout') }}" class="btn-logout">Logout</a>
+                </div>
+                {% else %}
+                <div class="auth-buttons">
+                    <a href="{{ url_for('auth.login') }}" class="btn btn-outline">Login</a>
+                    <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Register</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Flash Notifications Container -->
+    <main class="page-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-container">
+                {% for category, message in messages %}
+                <div class="flash-alert flash-{{ category }}">
+                    <span class="flash-icon">
+                        {% if category == 'success' %}✓{% elif category == 'danger' %}⚠{% elif category == 'warning' %}!{% else %}ℹ{% endif %}
+                    </span>
+                    <span class="flash-msg">{{ message }}</span>
+                    <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Main Page Content Block -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Sticky Collapsible DAA Telemetry Drawer -->
+    <div id="telemetryDrawer" class="telemetry-drawer collapsed">
+        <div class="telemetry-header" onclick="toggleTelemetry()">
+            <div class="telemetry-title">
+                <span class="telemetry-pulse"></span>
+                <strong>DAA Algorithmic Telemetry Monitor</strong>
+                <span id="telemetryCount" class="badge-count">0 calls</span>
+            </div>
+            <div class="telemetry-latest" id="telemetryLatest">
+                <em>No algorithmic operations recorded yet.</em>
+            </div>
+            <div class="telemetry-controls">
+                <button type="button" class="btn-drawer-toggle" id="drawerToggleBtn">▲ Expand</button>
+            </div>
+        </div>
+        <div class="telemetry-body" id="telemetryBody">
+            <div class="telemetry-table-wrapper">
+                <table class="telemetry-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Algorithm</th>
+                            <th>DAA Syllabus Unit</th>
+                            <th>Input Size ($N$)</th>
+                            <th>Time ($\text{ms}$)</th>
+                            <th>Theoretical Complexity</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="telemetryLogs">
+                        <tr id="emptyTelemetryRow">
+                            <td colspan="7" class="text-center text-muted">
+                                Perform a search, submit a report, or trigger graph routing to view live execution metrics.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Scripts -->
+    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}Report Lost / Found Item — Campus Portal{% endblock %}
+
+{% block content %}
+<div class="report-container">
+    <div class="form-header">
+        <h2>Report an Item</h2>
+        <p class="subtitle">Submit an item to run automated Rabin-Karp screening, DSU duplicate clustering, and LCS candidate pairing.</p>
+    </div>
+
+    <!-- Live DSU Duplicate Alert Banner (Hidden until triggered) -->
+    <div id="duplicateAlert" class="alert-box alert-warning" style="display: none;">
+        <div class="alert-icon">⚠️</div>
+        <div class="alert-content">
+            <h4>Potential Duplicate Detected by DSU!</h4>
+            <p id="duplicateMessage">An open item report with matching attributes was identified at this location. It has been grouped into Equivalence Cluster <strong id="clusterRootBadge">#0</strong>.</p>
+        </div>
+    </div>
+
+    <div class="report-grid">
+        <!-- Submission Form Card -->
+        <div class="card report-card">
+            <form id="reportForm" class="report-form">
+                <!-- Type Selection -->
+                <div class="form-group">
+                    <label class="form-label">Report Type</label>
+                    <div class="type-selector">
+                        <label class="radio-label">
+                            <input type="radio" name="type" value="LOST" checked>
+                            <span class="type-pill pill-lost">I Lost an Item</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="type" value="FOUND">
+                            <span class="type-pill pill-found">I Found an Item</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Title & Category -->
+                <div class="form-row">
+                    <div class="form-group col-8">
+                        <label for="title" class="form-label">Item Title *</label>
+                        <input type="text" id="title" name="title" class="form-control" placeholder="e.g. Blue Dell Laptop Bag or Student ID" required>
+                    </div>
+
+                    <div class="form-group col-4">
+                        <label for="category" class="form-label">Category *</label>
+                        <select id="category" name="category" class="form-control" required>
+                            <option value="Electronics">Electronics</option>
+                            <option value="ID/Documents">ID / Documents</option>
+                            <option value="Keys">Keys</option>
+                            <option value="Books">Books</option>
+                            <option value="Accessories">Accessories</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="form-group">
+                    <label for="description" class="form-label">Detailed Description *</label>
+                    <textarea id="description" name="description" rows="4" class="form-control" placeholder="Provide distinct characteristics, color, brand, stickers, where it was lost/found..." required></textarea>
+                    <small class="form-hint">Scanned in real-time by Rabin-Karp rolling hashes and matched via LCS dynamic programming.</small>
+                </div>
+
+                <!-- Location & Serial Tag -->
+                <div class="form-row">
+                    <div class="form-group col-6">
+                        <label for="loc_id" class="form-label">Campus Location *</label>
+                        <select id="loc_id" name="loc_id" class="form-control" required>
+                            {% for loc in locations %}
+                            <option value="{{ loc.loc_id }}">{{ loc.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group col-6">
+                        <label for="serial_tag" class="form-label">Serial Tag / ID / Roll Number (Optional)</label>
+                        <input type="text" id="serial_tag" name="serial_tag" class="form-control" placeholder="e.g. DELL-99812 or 2024CS01">
+                    </div>
+                </div>
+
+                <!-- Algorithmic Optimization Attributes -->
+                <div class="form-section-divider">
+                    <span>DAA Scheduling & Packing Attributes</span>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group col-4">
+                        <label for="item_weight" class="form-label">Item Weight (kg)</label>
+                        <input type="number" id="item_weight" name="item_weight" class="form-control" value="1" min="1" max="20" title="Used in 0/1 Knapsack locker packing">
+                        <small class="form-hint">0/1 Knapsack capacity</small>
+                    </div>
+
+                    <div class="form-group col-4">
+                        <label for="priority_value" class="form-label">Priority Value (1-50)</label>
+                        <input type="number" id="priority_value" name="priority_value" class="form-control" value="15" min="1" max="50" title="Used in Greedy Job Scheduling">
+                        <small class="form-hint">Greedy Job Sequencing</small>
+                    </div>
+
+                    <div class="form-group col-4">
+                        <label for="deadline_hours" class="form-label">Expiry Deadline (Hours)</label>
+                        <input type="number" id="deadline_hours" name="deadline_hours" class="form-control" value="48" min="1" max="168">
+                        <small class="form-hint">Claim urgency window</small>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" id="submitReportBtn" class="btn btn-primary btn-lg">Submit Report</button>
+                    <a href="{{ url_for('items.feed') }}" class="btn btn-outline">Cancel</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Real-Time Candidate Matches Section (Populated upon submission) -->
+        <div class="card matches-card">
+            <h3>Candidate Matches</h3>
+            <p class="text-muted">Once submitted, candidates are ranked by LCS text similarity and Floyd-Warshall campus proximity.</p>
+            
+            <div id="candidatesList" class="candidates-container">
+                <div class="empty-matches-placeholder">
+                    <span class="icon">✨</span>
+                    <p>No item submitted yet. Fill out the form to trigger the matching pipeline.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('reportForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('submitReportBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Processing DAA Algorithms...';
+
+    const formData = {
+        type: document.querySelector('input[name="type"]:checked').value,
+        title: document.getElementById('title').value.trim(),
+        category: document.getElementById('category').value,
+        description: document.getElementById('description').value.trim(),
+        loc_id: parseInt(document.getElementById('loc_id').value, 10),
+        serial_tag: document.getElementById('serial_tag').value.trim() || null,
+        item_weight: parseInt(document.getElementById('item_weight').value, 10) || 1,
+        priority_value: parseInt(document.getElementById('priority_value').value, 10) || 10,
+        deadline_hours: parseInt(document.getElementById('deadline_hours').value, 10) || 48
+    };
+
+    try {
+        const response = await apiFetch('/api/items/report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+
+        if (response.status === 'ok') {
+            const data = response.data;
+
+            // Handle DSU duplicate warning
+            const dupAlert = document.getElementById('duplicateAlert');
+            if (data.duplicate_detected) {
+                document.getElementById('clusterRootBadge').innerText = '#' + data.cluster_root_id;
+                dupAlert.style.display = 'flex';
+            } else {
+                dupAlert.style.display = 'none';
+            }
+
+            // Render Candidate Matches
+            const container = document.getElementById('candidatesList');
+            if (data.candidates && data.candidates.length > 0) {
+                container.innerHTML = data.candidates.map(c => `
+                    <div class="candidate-item-box">
+                        <div class="cand-header">
+                            <strong>${c.item.title}</strong>
+                            <span class="confidence-badge">${Math.round(c.confidence_score * 100)}% Match</span>
+                        </div>
+                        <p class="cand-desc">${c.item.description}</p>
+                        <div class="cand-meta">
+                            <span>📍 ${c.item.location_name || 'Campus'}</span>
+                            <span>LCS Similarity: <code>${c.lcs_score}</code></span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = `
+                    <div class="empty-matches-placeholder">
+                        <span class="icon">🔍</span>
+                        <p>No immediate candidate matches found in opposite category. We will monitor newly filed reports.</p>
+                    </div>
+                `;
+            }
+
+            alert("Item successfully reported! View the Telemetry Drawer below for DSU and LCS execution metrics.");
+        } else {
+            alert("Error reporting item: " + (response.message || "Failed"));
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Submission failed. Check network or server logs.");
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Submit Report';
+    }
+});
+</script>
+{% endblock %}
