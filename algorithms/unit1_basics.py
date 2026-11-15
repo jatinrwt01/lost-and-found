@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from algorithms.metrics import measure_daa
 
 
@@ -38,7 +38,7 @@ def _partition(arr: List[Dict[str, Any]], low: int, high: int, key: str) -> int:
             i += 1
             arr[i], arr[j] = arr[j], arr[i]
 
-    arr[i + 1], arr[high] = arr[high], arr[i + 1]
+        arr[i + 1], arr[high] = arr[high], arr[i + 1]
     return i + 1
 
 
@@ -85,3 +85,27 @@ def sort_items(items: List[Dict[str, Any]], key: str, method: str = "merge") -> 
         return _sort_items_quick(items, key)
 
     raise ValueError(f"Unsupported sorting method: '{method}'. Only 'merge' and 'quick' are supported.")
+
+
+@measure_daa(
+    algorithm="Binary Search",
+    unit="Unit I",
+    complexity="O(log n)",
+    input_size_fn=lambda *args, **kwargs: len(args[0]) if args else len(kwargs.get("sorted_items", [])),
+)
+def binary_search_item_id(sorted_items: List[Dict[str, Any]], target_id: int) -> Dict[str, Any]:
+    low = 0
+    high = len(sorted_items) - 1
+
+    while low <= high:
+        mid = (low + high) // 2
+        current_id = sorted_items[mid]["item_id"]
+
+        if current_id == target_id:
+            return sorted_items[mid]
+        elif current_id < target_id:
+            low = mid + 1
+        else:
+            high = mid - 1
+
+    return None
