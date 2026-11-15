@@ -12,17 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterPills = document.querySelectorAll('.filter-pills-row .pill');
 
     let activeFilter = 'all';
+    let debounceTimer = null;
 
     // Search button click
     if (executeSearchBtn) {
         executeSearchBtn.addEventListener('click', () => triggerFeedSearch());
     }
 
-    // Enter key triggers search
+    // Debounced real-time search on input
     if (searchInput) {
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
+                clearTimeout(debounceTimer);
                 triggerFeedSearch();
             }
         });
@@ -31,6 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (clearSearchBtn) {
                 clearSearchBtn.style.display = searchInput.value ? 'block' : 'none';
             }
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                triggerFeedSearch();
+            }, 300);
         });
     }
 
@@ -59,9 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (searchModeSelect) {
         searchModeSelect.addEventListener('change', () => {
-            if (searchInput.value.trim()) {
-                triggerFeedSearch();
-            }
+            triggerFeedSearch();
         });
     }
 });
@@ -87,6 +91,10 @@ async function triggerFeedSearch() {
         const res = await apiFetch(url);
         if (res.status === 'ok') {
             renderItems(res.data);
+            const activePill = document.querySelector('.filter-pills-row .pill.active');
+            if (activePill && activePill.dataset.filter !== 'all') {
+                applyClientSideCategoryFilter(activePill.dataset.filter);
+            }
         }
     } catch (err) {
         console.error("Feed search failed:", err);
@@ -182,35 +190,80 @@ function applyClientSideCategoryFilter(filter) {
 /**
  * Match Candidates Modal Controls
  */
-function openMatchModal(itemId, itemType, itemTitle) {
+async function openMatchModal(itemId, itemType, itemTitle) {
     const modal = document.getElementById('matchModal');
     const title = document.getElementById('modalTitle');
     const body = document.getElementById('modalBody');
 
     if (!modal) return;
-    title.innerText = `LCS & Distance Pairing for: "${itemTitle}" (#${itemId})`;
+    title.innerText = `LCS & Distance Pairing: "${itemTitle}" (#${itemId})`;
     body.innerHTML = `
-        <div style="padding: 1rem 0;">
-            <p><strong>Querying DAA Engine:</strong> Finding optimal ${itemType === 'LOST' ? 'FOUND' : 'LOST'} counter-matches.</p>
-            <div style="margin-top: 1rem; background: #f8fafc; padding: 1rem; border-radius: 6px; border: 1px solid #e2e8f0;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span><strong>Candidate Pairing #102</strong></span>
-                    <span class="confidence-badge">92% Match</span>
-                </div>
-                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;">Calculated via Longest Common Subsequence ($O(m \\cdot n)$) and Floyd-Warshall Campus Matrix ($O(V^3)$).</p>
-                <div style="font-size: 0.8rem; display: flex; gap: 1rem;">
-                    <span>Normalized LCS Score: <code>0.88</code></span>
-                    <span>Spatial Distance: <code>140 meters</code></span>
-                </div>
-            </div>
+        <div style="padding: 1.5rem 0; text-align: center;">
+            <p><strong>Querying DAA Engine...</strong></p>
+            <p class="text-muted" style="font-size: 0.85rem; margin-top: 0.25rem;">Computing Floyd-Warshall distance matrix ($O(V^3)$) and Longest Common Subsequence ($O(m \\cdot n)$)...</p>
         </div>
     `;
     modal.style.display = 'flex';
+
+    try {
+        const res = await apiFetch(`/api/items/candidates/${itemId}`);
+        if (res.status === 'ok') {
+            const candidates = res.data.candidates;
+            if (candidates.length === 0) {
+                body.innerHTML = `
+                    <div class="empty-matches-placeholder">
+                        <span class="icon">🔍</span>
+                        <p>No counter-candidates found in the opposite category yet.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            body.innerHTML = `
+                <div style="margin-bottom: 0.75rem; font-size: 0.88rem; color: #475569;">
+                    Found <strong>${candidates.length}</strong> potential counter-match${candidates.length === 1 ? '' : 'es'} ranked by composite text & spatial score:
+                </div>
+                <div class="candidates-modal-list">
+                    ${candidates.map((c, idx) => `
+                        <div class="candidate-item-box" style="margin-bottom: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem; background: #ffffff;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                                <strong>#${idx + 1}: ${escapeHtml(c.item.title)} (#${c.item.item_id})</strong>
+                                <span class="confidence-badge" style="background: ${c.confidence_score >= 0.7 ? '#dcfce7' : '#fef3c7'}; color: ${c.confidence_score >= 0.7 ? '#15803d' : '#b45309'}; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">
+                                    ${Math.round(c.confidence_score * 100)}% Match
+                                </span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;">${escapeHtml(c.item.description)}</p>
+                            <div style="font-size: 0.78rem; display: flex; flex-wrap: wrap; gap: 1rem; color: #475569; background: #f8fafc; padding: 0.4rem 0.6rem; border-radius: 4px;">
+                                <span>📍 <strong>Location:</strong> ${escapeHtml(c.item.location_name || 'Campus')}</span>
+                                <span>🔤 <strong>LCS Ratio:</strong> <code>${c.lcs_score}</code></span>
+                                <span>📏 <strong>Campus Dist:</strong> <code>${c.spatial_dist_meters}m</code></span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            body.innerHTML = `<p class="text-danger">Failed to retrieve candidate matches: ${res.message || 'Unknown error'}</p>`;
+        }
+    } catch (e) {
+        console.error("Match candidate fetch error:", e);
+        body.innerHTML = `<p class="text-danger">Network error fetching candidates. Check connection.</p>`;
+    }
 }
 
 function closeMatchModal() {
     const modal = document.getElementById('matchModal');
     if (modal) modal.style.display = 'none';
+}
+
+function escapeHtml(str) {
+    if (typeof str !== 'string') return str;
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 window.openMatchModal = openMatchModal;

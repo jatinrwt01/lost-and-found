@@ -83,6 +83,19 @@
             </div>
         </div>
         <div class="telemetry-body" id="telemetryBody">
+            <div class="telemetry-toolbar">
+                <div class="telemetry-filter-tabs">
+                    <button class="t-tab active" onclick="filterTelemetryUnit('all', this)">All Units</button>
+                    <button class="t-tab" onclick="filterTelemetryUnit('Unit I', this)">Unit I (Sorting & DSU)</button>
+                    <button class="t-tab" onclick="filterTelemetryUnit('Unit II', this)">Unit II (Greedy & BT)</button>
+                    <button class="t-tab" onclick="filterTelemetryUnit('Unit III', this)">Unit III (DP & BB)</button>
+                    <button class="t-tab" onclick="filterTelemetryUnit('Unit IV', this)">Unit IV (Strings & Flow)</button>
+                </div>
+                <div class="telemetry-actions">
+                    <button class="btn btn-sm btn-outline" onclick="copyTelemetryJSON()">📋 Copy JSON</button>
+                    <button class="btn btn-sm btn-outline" onclick="clearTelemetryLog()">🗑️ Clear</button>
+                </div>
+            </div>
             <div class="telemetry-table-wrapper">
                 <table class="telemetry-table">
                     <thead>

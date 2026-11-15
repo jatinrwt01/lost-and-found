@@ -4,6 +4,8 @@
  */
 
 let telemetryCount = 0;
+const telemetryHistory = [];
+let currentUnitFilter = 'all';
 
 /**
  * Universal API Fetch wrapper that automatically parses and updates
@@ -35,7 +37,13 @@ function handleTelemetryUpdates(telemetry) {
     list.forEach(record => {
         if (!record || !record.algorithm) return;
         telemetryCount++;
-        addTelemetryRow(record);
+        const enrichedRecord = {
+            id: telemetryCount,
+            ...record,
+            timestamp: new Date().toLocaleTimeString()
+        };
+        telemetryHistory.unshift(enrichedRecord);
+        addTelemetryRow(enrichedRecord);
     });
 
     const countBadge = document.getElementById('telemetryCount');
@@ -59,21 +67,88 @@ function addTelemetryRow(record) {
         latestBox.innerHTML = `<strong>Last:</strong> ${escapeHtml(record.algorithm)} (${record.time_ms} ms | ${escapeHtml(record.complexity)})`;
     }
 
-    const now = new Date().toLocaleTimeString();
     const tr = document.createElement('tr');
+    tr.dataset.unit = record.unit || '';
+    tr.className = 'telemetry-log-row';
+
+    if (currentUnitFilter !== 'all' && !record.unit?.includes(currentUnitFilter)) {
+        tr.style.display = 'none';
+    }
+
     tr.innerHTML = `
-        <td><strong>#${telemetryCount}</strong></td>
+        <td><strong>#${record.id}</strong></td>
         <td><strong>${escapeHtml(record.algorithm)}</strong></td>
         <td><span class="telemetry-badge-unit">${escapeHtml(record.unit || 'Unit I–IV')}</span></td>
         <td>${record.input_size ?? 'N/A'}</td>
         <td><code>${record.time_ms ?? '0.00'} ms</code></td>
         <td><span class="telemetry-complexity">${escapeHtml(record.complexity || 'O(1)')}</span></td>
-        <td><small class="text-muted">${now}</small></td>
+        <td><small class="text-muted">${record.timestamp}</small></td>
     `;
 
     if (tableBody) {
         tableBody.insertBefore(tr, tableBody.firstChild);
     }
+}
+
+/**
+ * Filters the displayed telemetry table by DAA syllabus unit.
+ */
+function filterTelemetryUnit(unit, btn) {
+    currentUnitFilter = unit;
+    const tabs = document.querySelectorAll('.telemetry-filter-tabs .t-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    const rows = document.querySelectorAll('.telemetry-log-row');
+    rows.forEach(row => {
+        const rowUnit = row.dataset.unit;
+        if (unit === 'all' || rowUnit.includes(unit)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Copies the entire telemetry history log to clipboard as formatted JSON.
+ */
+async function copyTelemetryJSON() {
+    if (telemetryHistory.length === 0) {
+        alert("No telemetry records logged yet.");
+        return;
+    }
+    const jsonStr = JSON.stringify(telemetryHistory, null, 2);
+    try {
+        await navigator.clipboard.writeText(jsonStr);
+        alert(`Copied ${telemetryHistory.length} telemetry execution records to clipboard!`);
+    } catch (e) {
+        console.error("Clipboard copy failed:", e);
+        prompt("Copy telemetry JSON below:", jsonStr);
+    }
+}
+
+/**
+ * Clears the telemetry log table and resets the session counter.
+ */
+function clearTelemetryLog() {
+    telemetryHistory.length = 0;
+    telemetryCount = 0;
+    const tableBody = document.getElementById('telemetryLogs');
+    if (tableBody) {
+        tableBody.innerHTML = `
+            <tr id="emptyTelemetryRow">
+                <td colspan="7" class="text-center text-muted">
+                    Telemetry log cleared. Run an algorithmic action to record new metrics.
+                </td>
+            </tr>
+        `;
+    }
+    const countBadge = document.getElementById('telemetryCount');
+    if (countBadge) countBadge.innerText = '0 calls';
+
+    const latestBox = document.getElementById('telemetryLatest');
+    if (latestBox) latestBox.innerHTML = '<em>No algorithmic operations recorded yet.</em>';
 }
 
 /**
@@ -106,3 +181,6 @@ function escapeHtml(str) {
 window.apiFetch = apiFetch;
 window.toggleTelemetry = toggleTelemetry;
 window.handleTelemetryUpdates = handleTelemetryUpdates;
+window.filterTelemetryUnit = filterTelemetryUnit;
+window.copyTelemetryJSON = copyTelemetryJSON;
+window.clearTelemetryLog = clearTelemetryLog;
