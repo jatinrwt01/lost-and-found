@@ -110,3 +110,77 @@ def all_pairs_shortest_paths(num_nodes: int, edges: List[Dict[str, Any]]) -> Dic
     ]
 
     return {"dist_matrix": dist_matrix}
+
+
+@measure_daa(
+    algorithm="0/1 Knapsack",
+    unit="Unit III",
+    complexity="O(n * W)",
+    input_size_fn=lambda *args, **kwargs: len(args[0]) if args else len(kwargs.get("items", [])),
+)
+def optimize_vault_packing(items: List[Dict[str, Any]], capacity: int) -> Dict[str, Any]:
+    if not isinstance(capacity, int) or isinstance(capacity, bool) or capacity < 0:
+        raise ValueError(f"capacity must be a non-negative integer, got {capacity!r}")
+
+    if not isinstance(items, list):
+        raise ValueError(f"items must be a list, got {type(items).__name__}")
+
+    seen_ids = set()
+    for idx, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ValueError(f"Item at index {idx} must be a dictionary, got {type(item).__name__}")
+
+        for field in ("item_id", "item_weight", "priority_value"):
+            if field not in item:
+                raise ValueError(f"Item at index {idx} missing required field '{field}'")
+
+        item_id = item["item_id"]
+        if not isinstance(item_id, int) or isinstance(item_id, bool):
+            raise ValueError(f"item_id must be an integer, got {item_id!r} at index {idx}")
+
+        if item_id in seen_ids:
+            raise ValueError(f"Duplicate item_id {item_id} found at index {idx}")
+        seen_ids.add(item_id)
+
+        weight = item["item_weight"]
+        if not isinstance(weight, int) or isinstance(weight, bool) or weight < 0:
+            raise ValueError(f"item_weight must be a non-negative integer, got {weight!r} at index {idx}")
+
+        priority = item["priority_value"]
+        if not isinstance(priority, int) or isinstance(priority, bool) or priority < 0:
+            raise ValueError(f"priority_value must be a non-negative integer, got {priority!r} at index {idx}")
+
+    n = len(items)
+    W = capacity
+
+    if n == 0:
+        return {"selected_item_ids": [], "max_value": 0}
+
+    dp = [[0] * (W + 1) for _ in range(n + 1)]
+
+    for i in range(1, n + 1):
+        item = items[i - 1]
+        w_i = item["item_weight"]
+        v_i = item["priority_value"]
+        for w in range(W + 1):
+            if w < w_i:
+                dp[i][w] = dp[i - 1][w]
+            else:
+                exclude_val = dp[i - 1][w]
+                include_val = dp[i - 1][w - w_i] + v_i
+                dp[i][w] = include_val if include_val > exclude_val else exclude_val
+
+    selected_item_ids: List[int] = []
+    w = W
+    for i in range(n, 0, -1):
+        if dp[i][w] != dp[i - 1][w]:
+            item = items[i - 1]
+            selected_item_ids.append(item["item_id"])
+            w -= item["item_weight"]
+
+    selected_item_ids.sort()
+
+    return {
+        "selected_item_ids": selected_item_ids,
+        "max_value": dp[n][W],
+    }

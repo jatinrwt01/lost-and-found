@@ -8,6 +8,7 @@ from algorithms import (
     cluster_duplicate_items,
     compute_dropbox_mst,
     compute_lcs_similarity,
+    optimize_vault_packing,
     schedule_urgent_claims,
     shortest_campus_path,
     sort_items,
@@ -435,6 +436,168 @@ class TestUnit3Algorithms(unittest.TestCase):
             all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": float("inf")}])
         with self.assertRaises(ValueError):
             all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": float("nan")}])
+
+    def test_knapsack_empty_items(self):
+        res = optimize_vault_packing([], 10)
+        self.assertEqual(res["result"]["selected_item_ids"], [])
+        self.assertEqual(res["result"]["max_value"], 0)
+        self.assertEqual(res["telemetry"]["algorithm"], "0/1 Knapsack")
+        self.assertEqual(res["telemetry"]["unit"], "Unit III")
+        self.assertEqual(res["telemetry"]["complexity"], "O(n * W)")
+        self.assertEqual(res["telemetry"]["input_size"], 0)
+
+    def test_knapsack_zero_capacity(self):
+        items = [{"item_id": 1, "item_weight": 5, "priority_value": 20}]
+        res = optimize_vault_packing(items, 0)
+        self.assertEqual(res["result"]["selected_item_ids"], [])
+        self.assertEqual(res["result"]["max_value"], 0)
+        self.assertEqual(res["telemetry"]["input_size"], 1)
+
+    def test_knapsack_single_item_fits(self):
+        items = [{"item_id": 101, "item_weight": 3, "priority_value": 15}]
+        res = optimize_vault_packing(items, 5)
+        self.assertEqual(res["result"]["selected_item_ids"], [101])
+        self.assertEqual(res["result"]["max_value"], 15)
+
+    def test_knapsack_single_item_exceeds(self):
+        items = [{"item_id": 102, "item_weight": 6, "priority_value": 15}]
+        res = optimize_vault_packing(items, 5)
+        self.assertEqual(res["result"]["selected_item_ids"], [])
+        self.assertEqual(res["result"]["max_value"], 0)
+
+    def test_knapsack_combination_optimal(self):
+        items = [
+            {"item_id": 1, "item_weight": 2, "priority_value": 20},
+            {"item_id": 2, "item_weight": 3, "priority_value": 30},
+            {"item_id": 3, "item_weight": 4, "priority_value": 40},
+        ]
+        res = optimize_vault_packing(items, 5)
+        self.assertEqual(res["result"]["selected_item_ids"], [1, 2])
+        self.assertEqual(res["result"]["max_value"], 50)
+
+    def test_knapsack_highest_value_not_optimal(self):
+        items = [
+            {"item_id": 1, "item_weight": 5, "priority_value": 60},
+            {"item_id": 2, "item_weight": 3, "priority_value": 40},
+            {"item_id": 3, "item_weight": 2, "priority_value": 35},
+        ]
+        res = optimize_vault_packing(items, 5)
+        self.assertEqual(res["result"]["selected_item_ids"], [2, 3])
+        self.assertEqual(res["result"]["max_value"], 75)
+
+    def test_knapsack_exact_capacity_utilization(self):
+        items = [
+            {"item_id": 10, "item_weight": 3, "priority_value": 30},
+            {"item_id": 20, "item_weight": 7, "priority_value": 70},
+        ]
+        res = optimize_vault_packing(items, 10)
+        self.assertEqual(res["result"]["selected_item_ids"], [10, 20])
+        self.assertEqual(res["result"]["max_value"], 100)
+
+    def test_knapsack_zero_weight_item(self):
+        items = [{"item_id": 1, "item_weight": 0, "priority_value": 50}]
+        res = optimize_vault_packing(items, 0)
+        self.assertEqual(res["result"]["selected_item_ids"], [1])
+        self.assertEqual(res["result"]["max_value"], 50)
+
+    def test_knapsack_multiple_zero_weight_items_with_ordinary_items(self):
+        items = [
+            {"item_id": 1, "item_weight": 0, "priority_value": 15},
+            {"item_id": 2, "item_weight": 0, "priority_value": 25},
+            {"item_id": 3, "item_weight": 4, "priority_value": 60},
+            {"item_id": 4, "item_weight": 6, "priority_value": 70},
+        ]
+        res = optimize_vault_packing(items, 4)
+        self.assertEqual(res["result"]["selected_item_ids"], [1, 2, 3])
+        self.assertEqual(res["result"]["max_value"], 100)
+
+    def test_knapsack_tie_handling_prefers_earlier(self):
+        items = [
+            {"item_id": 1, "item_weight": 2, "priority_value": 20},
+            {"item_id": 2, "item_weight": 2, "priority_value": 20},
+        ]
+        res = optimize_vault_packing(items, 2)
+        self.assertEqual(res["result"]["selected_item_ids"], [1])
+        self.assertEqual(res["result"]["max_value"], 20)
+
+    def test_knapsack_all_exceed_capacity(self):
+        items = [
+            {"item_id": 1, "item_weight": 10, "priority_value": 100},
+            {"item_id": 2, "item_weight": 20, "priority_value": 200},
+        ]
+        res = optimize_vault_packing(items, 5)
+        self.assertEqual(res["result"]["selected_item_ids"], [])
+        self.assertEqual(res["result"]["max_value"], 0)
+
+    def test_knapsack_invalid_capacity(self):
+        items = [{"item_id": 1, "item_weight": 1, "priority_value": 10}]
+        with self.assertRaises(ValueError):
+            optimize_vault_packing(items, -1)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing(items, True)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing(items, False)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing(items, 5.5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing(items, "5")
+        with self.assertRaises(ValueError):
+            optimize_vault_packing(items, None)
+
+    def test_knapsack_invalid_item_structures(self):
+        with self.assertRaises(ValueError):
+            optimize_vault_packing("not_a_list", 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([None], 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_weight": 2, "priority_value": 10}], 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_id": 1, "priority_value": 10}], 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_id": 1, "item_weight": 2}], 5)
+
+    def test_knapsack_duplicate_item_ids(self):
+        items = [
+            {"item_id": 1, "item_weight": 2, "priority_value": 10},
+            {"item_id": 1, "item_weight": 3, "priority_value": 20},
+        ]
+        with self.assertRaises(ValueError):
+            optimize_vault_packing(items, 5)
+
+    def test_knapsack_invalid_weights_and_priorities(self):
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_id": 1, "item_weight": True, "priority_value": 10}], 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_id": 1, "item_weight": 2, "priority_value": False}], 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_id": 1, "item_weight": -1, "priority_value": 10}], 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_id": 1, "item_weight": 2, "priority_value": -5}], 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_id": 1, "item_weight": 2.5, "priority_value": 10}], 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_id": 1, "item_weight": 2, "priority_value": "high"}], 5)
+        with self.assertRaises(ValueError):
+            optimize_vault_packing([{"item_id": True, "item_weight": 2, "priority_value": 10}], 5)
+
+    def test_knapsack_preserves_input(self):
+        items = [
+            {"item_id": 1, "item_weight": 3, "priority_value": 30},
+            {"item_id": 2, "item_weight": 4, "priority_value": 50},
+        ]
+        copy_items = [dict(it) for it in items]
+        optimize_vault_packing(items, 6)
+        self.assertEqual(items, copy_items)
+
+    def test_knapsack_telemetry(self):
+        items = [{"item_id": 1, "item_weight": 2, "priority_value": 10}]
+        res = optimize_vault_packing(items, 5)
+        tel = res["telemetry"]
+        self.assertEqual(tel["algorithm"], "0/1 Knapsack")
+        self.assertEqual(tel["unit"], "Unit III")
+        self.assertEqual(tel["complexity"], "O(n * W)")
+        self.assertEqual(tel["input_size"], 1)
+        self.assertGreaterEqual(tel["time_ms"], 0.0)
 
 
 if __name__ == "__main__":
