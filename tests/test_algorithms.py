@@ -4,8 +4,10 @@ from algorithms import (
     binary_search_item_id,
     cluster_duplicate_items,
     kmp_search_items,
+    rabin_karp_watchlist_scan,
     sort_items,
 )
+from algorithms.unit4_str_flow import _rabin_karp_search
 
 
 class TestUnit1Algorithms(unittest.TestCase):
@@ -261,6 +263,148 @@ class TestUnit4Algorithms(unittest.TestCase):
         self.assertEqual(tel["complexity"], "O(n + m)")
         expected_input_size = len("Dell Laptop") + len("dell")
         self.assertEqual(tel["input_size"], expected_input_size)
+        self.assertGreaterEqual(tel["time_ms"], 0.0)
+
+    def test_rk_empty_text(self):
+        res = rabin_karp_watchlist_scan("", ["stolen"])
+        self.assertFalse(res["result"]["flagged"])
+        self.assertEqual(res["result"]["matched_patterns"], [])
+        self.assertEqual(res["telemetry"]["algorithm"], "Rabin-Karp")
+        self.assertEqual(res["telemetry"]["unit"], "Unit IV")
+        self.assertEqual(res["telemetry"]["complexity"], "O(n * P) worst case, O(n * d + P) average")
+        self.assertEqual(res["telemetry"]["input_size"], len("stolen"))
+
+    def test_rk_empty_watchlist(self):
+        res = rabin_karp_watchlist_scan("This is safe text", [])
+        self.assertFalse(res["result"]["flagged"])
+        self.assertEqual(res["result"]["matched_patterns"], [])
+        self.assertEqual(res["telemetry"]["input_size"], len("This is safe text"))
+
+    def test_rk_single_pattern_found(self):
+        res = rabin_karp_watchlist_scan("This item was stolen from lab", ["stolen"])
+        self.assertTrue(res["result"]["flagged"])
+        self.assertEqual(res["result"]["matched_patterns"], ["stolen"])
+
+    def test_rk_single_pattern_not_found(self):
+        res = rabin_karp_watchlist_scan("Lost blue backpack in library", ["stolen"])
+        self.assertFalse(res["result"]["flagged"])
+        self.assertEqual(res["result"]["matched_patterns"], [])
+
+    def test_rk_multiple_patterns_found(self):
+        text = "Suspected fraud involving a stolen identity tag"
+        watchlist = ["stolen", "fraud"]
+        res = rabin_karp_watchlist_scan(text, watchlist)
+        self.assertTrue(res["result"]["flagged"])
+        self.assertEqual(res["result"]["matched_patterns"], ["stolen", "fraud"])
+
+    def test_rk_only_some_patterns_found(self):
+        text = "Lost keys found near cafeteria"
+        watchlist = ["stolen", "lost", "fraud"]
+        res = rabin_karp_watchlist_scan(text, watchlist)
+        self.assertTrue(res["result"]["flagged"])
+        self.assertEqual(res["result"]["matched_patterns"], ["lost"])
+
+    def test_rk_pattern_longer_than_text(self):
+        res = rabin_karp_watchlist_scan("hi", ["longerpatternthanhi"])
+        self.assertFalse(res["result"]["flagged"])
+        self.assertEqual(res["result"]["matched_patterns"], [])
+
+    def test_rk_empty_watchlist_pattern(self):
+        res1 = rabin_karp_watchlist_scan("some text", [""])
+        self.assertTrue(res1["result"]["flagged"])
+        self.assertEqual(res1["result"]["matched_patterns"], [""])
+
+        res2 = rabin_karp_watchlist_scan("", [""])
+        self.assertTrue(res2["result"]["flagged"])
+        self.assertEqual(res2["result"]["matched_patterns"], [""])
+
+    def test_rk_duplicate_watchlist_patterns(self):
+        text = "fraudulent activity detected"
+        watchlist = ["fraud", "fraud", "fraud"]
+        res = rabin_karp_watchlist_scan(text, watchlist)
+        self.assertTrue(res["result"]["flagged"])
+        self.assertEqual(res["result"]["matched_patterns"], ["fraud"])
+
+    def test_rk_case_insensitive(self):
+        res1 = rabin_karp_watchlist_scan("STOLEN laptop reported", ["stolen"])
+        self.assertTrue(res1["result"]["flagged"])
+        self.assertEqual(res1["result"]["matched_patterns"], ["stolen"])
+
+        res2 = rabin_karp_watchlist_scan("stolen laptop reported", ["STOLEN"])
+        self.assertTrue(res2["result"]["flagged"])
+        self.assertEqual(res2["result"]["matched_patterns"], ["STOLEN"])
+
+        res3 = rabin_karp_watchlist_scan("FrAuD alert", ["fraud"])
+        self.assertTrue(res3["result"]["flagged"])
+        self.assertEqual(res3["result"]["matched_patterns"], ["fraud"])
+
+    def test_rk_hash_collision_verification(self):
+        # Using modulus=1 causes all string hashes to be 0 (guaranteed hash collision).
+        # Character verification must correctly determine that "world" does not appear in "hello".
+        self.assertFalse(_rabin_karp_search("hello", "world", base=257, modulus=1))
+        # But when the substring actually matches, it returns True even under modulus=1.
+        self.assertTrue(_rabin_karp_search("hello world", "world", base=257, modulus=1))
+
+    def test_rk_overlapping_occurrences(self):
+        res = rabin_karp_watchlist_scan("aaaaa", ["aaa"])
+        self.assertTrue(res["result"]["flagged"])
+        self.assertEqual(res["result"]["matched_patterns"], ["aaa"])
+
+    def test_rk_invalid_text_type(self):
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan(123, ["stolen"])
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan(None, ["stolen"])
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan(True, ["stolen"])
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan(["text"], ["stolen"])
+
+    def test_rk_invalid_watchlist_type(self):
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan("text", "not_a_list")
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan("text", None)
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan("text", 123)
+
+    def test_rk_invalid_watchlist_elements(self):
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan("text", [123])
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan("text", [None])
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan("text", [True])
+        with self.assertRaises(ValueError):
+            rabin_karp_watchlist_scan("text", [["nested"]])
+
+    def test_rk_input_immutability(self):
+        text = "This item was stolen"
+        watchlist = ["stolen", "fraud"]
+        copy_wl = list(watchlist)
+        rabin_karp_watchlist_scan(text, watchlist)
+        self.assertEqual(watchlist, copy_wl)
+
+    def test_rk_matched_pattern_ordering(self):
+        text = "Suspected fraud and stolen bicycle"
+        watchlist1 = ["fraud", "stolen"]
+        res1 = rabin_karp_watchlist_scan(text, watchlist1)
+        self.assertEqual(res1["result"]["matched_patterns"], ["fraud", "stolen"])
+
+        watchlist2 = ["stolen", "fraud"]
+        res2 = rabin_karp_watchlist_scan(text, watchlist2)
+        self.assertEqual(res2["result"]["matched_patterns"], ["stolen", "fraud"])
+
+    def test_rk_telemetry(self):
+        text = "Watchlist text"
+        watchlist = ["list", "watch"]
+        res = rabin_karp_watchlist_scan(text, watchlist)
+        tel = res["telemetry"]
+        self.assertEqual(tel["algorithm"], "Rabin-Karp")
+        self.assertEqual(tel["unit"], "Unit IV")
+        self.assertEqual(tel["complexity"], "O(n * P) worst case, O(n * d + P) average")
+        expected_size = len(text) + sum(len(p) for p in watchlist)
+        self.assertEqual(tel["input_size"], expected_size)
         self.assertGreaterEqual(tel["time_ms"], 0.0)
 
 

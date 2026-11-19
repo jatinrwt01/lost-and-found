@@ -6,8 +6,5 @@ from .unit1_basics import (
 
 from .unit4_str_flow import (
     kmp_search_items,
-)
-
-from .unit4_str_flow import (
-    kmp_search_items,
+    rabin_karp_watchlist_scan,
 )
