@@ -1,3 +1,4 @@
+import math
 from typing import Any, Dict, List, Optional
 from algorithms.metrics import measure_daa
 
@@ -267,4 +268,235 @@ def rabin_karp_watchlist_scan(text: str, watchlist: List[str]) -> Dict[str, Any]
     return {
         "flagged": flagged,
         "matched_patterns": matched_patterns,
+    }
+
+
+def _extract_partition_id(
+    item: Dict[str, Any],
+    idx: int,
+    partition_name: str,
+    specific_key: str,
+) -> int:
+    if not isinstance(item, dict):
+        raise ValueError(
+            f"{partition_name} at index {idx} must be a dictionary, got {type(item).__name__}"
+        )
+
+    has_specific = specific_key in item
+    has_item_id = "item_id" in item
+
+    if not has_specific and not has_item_id:
+        raise ValueError(
+            f"{partition_name} at index {idx} missing required ID key ('{specific_key}' or 'item_id')"
+        )
+
+    if has_specific and has_item_id:
+        val_spec = item[specific_key]
+        val_id = item["item_id"]
+        if val_spec != val_id:
+            raise ValueError(
+                f"{partition_name} at index {idx} has conflicting IDs: '{specific_key}'={val_spec!r} vs 'item_id'={val_id!r}"
+            )
+        resolved_id = val_spec
+    elif has_specific:
+        resolved_id = item[specific_key]
+    else:
+        resolved_id = item["item_id"]
+
+    if isinstance(resolved_id, bool) or not isinstance(resolved_id, int):
+        raise ValueError(
+            f"{partition_name} at index {idx} has non-integer ID: {resolved_id!r}"
+        )
+
+    if resolved_id <= 0:
+        raise ValueError(
+            f"{partition_name} at index {idx} has non-positive ID: {resolved_id}"
+        )
+
+    return resolved_id
+
+
+class _FlowEdge:
+    __slots__ = ("u", "v", "cap", "cost", "score", "rev")
+
+    def __init__(self, u: Any, v: Any, cap: int, cost: float, score: float = 0.0) -> None:
+        self.u = u
+        self.v = v
+        self.cap = cap
+        self.cost = cost
+        self.score = score
+        self.rev: Optional["_FlowEdge"] = None
+
+
+def _add_flow_edge(
+    adj: Dict[Any, List[_FlowEdge]],
+    u: Any,
+    v: Any,
+    cap: int,
+    cost: float,
+    score: float = 0.0,
+) -> None:
+    e1 = _FlowEdge(u, v, cap, cost, score)
+    e2 = _FlowEdge(v, u, 0, -cost, score)
+    e1.rev = e2
+    e2.rev = e1
+    adj[u].append(e1)
+    adj[v].append(e2)
+
+
+def _bipartite_input_size(*args: Any, **kwargs: Any) -> int:
+    lost = args[0] if len(args) >= 1 else kwargs.get("lost_items", [])
+    found = args[1] if len(args) >= 2 else kwargs.get("found_items", [])
+    sm = args[2] if len(args) >= 3 else kwargs.get("score_matrix", {})
+
+    size_l = len(lost) if isinstance(lost, list) else 0
+    size_f = len(found) if isinstance(found, list) else 0
+
+    edge_count = 0
+    if isinstance(sm, dict):
+        for _k, inner in sm.items():
+            if isinstance(inner, dict):
+                for _fk, s in inner.items():
+                    if isinstance(s, (int, float)) and not isinstance(s, bool):
+                        if math.isfinite(s) and s > 0.0:
+                            edge_count += 1
+
+    return size_l + size_f + edge_count
+
+
+@measure_daa(
+    algorithm="Global Bipartite Matching",
+    unit="Unit IV",
+    complexity="O(K * V * E)",
+    input_size_fn=_bipartite_input_size,
+)
+def global_bipartite_match(
+    lost_items: List[Dict[str, Any]],
+    found_items: List[Dict[str, Any]],
+    score_matrix: Dict[Any, Any],
+) -> Dict[str, Any]:
+    if not isinstance(lost_items, list):
+        raise ValueError(f"lost_items must be a list, got {type(lost_items).__name__}")
+
+    if not isinstance(found_items, list):
+        raise ValueError(f"found_items must be a list, got {type(found_items).__name__}")
+
+    if not isinstance(score_matrix, dict):
+        raise ValueError(f"score_matrix must be a dictionary, got {type(score_matrix).__name__}")
+
+    seen_lost = set()
+    for idx, item in enumerate(lost_items):
+        lid = _extract_partition_id(item, idx, "lost_item", "lost_id")
+        if lid in seen_lost:
+            raise ValueError(f"Duplicate lost item ID {lid} found at index {idx}")
+        seen_lost.add(lid)
+
+    seen_found = set()
+    for idx, item in enumerate(found_items):
+        fid = _extract_partition_id(item, idx, "found_item", "found_id")
+        if fid in seen_found:
+            raise ValueError(f"Duplicate found item ID {fid} found at index {idx}")
+        seen_found.add(fid)
+
+    valid_candidate_edges: List[Tuple[int, int, float]] = []
+    for lost_k, inner_dict in score_matrix.items():
+        if isinstance(lost_k, bool) or not isinstance(lost_k, int):
+            raise ValueError(f"score_matrix outer key must be an integer, got {lost_k!r}")
+        if lost_k not in seen_lost:
+            raise ValueError(f"score_matrix contains lost_id {lost_k} not present in lost_items")
+        if not isinstance(inner_dict, dict):
+            raise ValueError(f"score_matrix[{lost_k}] must be a dictionary, got {type(inner_dict).__name__}")
+
+        for found_k, score_val in inner_dict.items():
+            if isinstance(found_k, bool) or not isinstance(found_k, int):
+                raise ValueError(f"score_matrix[{lost_k}] inner key must be an integer, got {found_k!r}")
+            if found_k not in seen_found:
+                raise ValueError(f"score_matrix[{lost_k}] contains found_id {found_k} not present in found_items")
+
+            if isinstance(score_val, bool) or not isinstance(score_val, (int, float)):
+                raise ValueError(
+                    f"Score for pair ({lost_k}, {found_k}) must be numeric, got {score_val!r}"
+                )
+
+            score_flt = float(score_val)
+            if not math.isfinite(score_flt):
+                raise ValueError(
+                    f"Score for pair ({lost_k}, {found_k}) must be finite, got {score_flt}"
+                )
+
+            if score_flt > 0.0:
+                valid_candidate_edges.append((lost_k, found_k, score_flt))
+
+    sorted_lost = sorted(seen_lost)
+    sorted_found = sorted(seen_found)
+
+    if not sorted_lost or not sorted_found or not valid_candidate_edges:
+        return {"pairs": [], "max_matches": 0}
+
+    S = ("source", 0)
+    T = ("sink", 0)
+    all_nodes = [S] + [("lost", uid) for uid in sorted_lost] + [("found", vid) for vid in sorted_found] + [T]
+    adj: Dict[Any, List[_FlowEdge]] = {node: [] for node in all_nodes}
+
+    for uid in sorted_lost:
+        _add_flow_edge(adj, S, ("lost", uid), cap=1, cost=0.0)
+
+    for vid in sorted_found:
+        _add_flow_edge(adj, ("found", vid), T, cap=1, cost=0.0)
+
+    sorted_candidates = sorted(valid_candidate_edges, key=lambda x: (x[0], x[1]))
+    for uid, vid, s in sorted_candidates:
+        _add_flow_edge(adj, ("lost", uid), ("found", vid), cap=1, cost=-s, score=s)
+
+    K = min(len(sorted_lost), len(sorted_found))
+    num_nodes = len(all_nodes)
+
+    for _ in range(K):
+        dist: Dict[Any, float] = {node: float("inf") for node in all_nodes}
+        dist[S] = 0.0
+        parent_edge: Dict[Any, Optional[_FlowEdge]] = {node: None for node in all_nodes}
+
+        for _step in range(num_nodes - 1):
+            updated = False
+            for node in all_nodes:
+                d_u = dist[node]
+                if d_u == float("inf"):
+                    continue
+                for edge in adj[node]:
+                    if edge.cap > 0:
+                        cand_dist = d_u + edge.cost
+                        if cand_dist < dist[edge.v]:
+                            dist[edge.v] = cand_dist
+                            parent_edge[edge.v] = edge
+                            updated = True
+            if not updated:
+                break
+
+        if dist[T] == float("inf") or dist[T] >= 0.0:
+            break
+
+        curr = T
+        while curr != S:
+            p_edge = parent_edge[curr]
+            p_edge.cap -= 1
+            p_edge.rev.cap += 1
+            curr = p_edge.u
+
+    pairs: List[Dict[str, Any]] = []
+    for uid in sorted_lost:
+        lost_node = ("lost", uid)
+        for edge in adj[lost_node]:
+            if edge.v[0] == "found" and edge.cap == 0 and edge.score > 0.0:
+                pairs.append({
+                    "lost_id": uid,
+                    "found_id": edge.v[1],
+                    "score": edge.score,
+                })
+                break
+
+    pairs.sort(key=lambda p: p["lost_id"])
+
+    return {
+        "pairs": pairs,
+        "max_matches": len(pairs),
     }

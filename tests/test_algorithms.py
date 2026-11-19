@@ -3,6 +3,7 @@ import unittest
 from algorithms import (
     binary_search_item_id,
     cluster_duplicate_items,
+    global_bipartite_match,
     kmp_search_items,
     rabin_karp_watchlist_scan,
     sort_items,
@@ -405,6 +406,228 @@ class TestUnit4Algorithms(unittest.TestCase):
         self.assertEqual(tel["complexity"], "O(n * P) worst case, O(n * d + P) average")
         expected_size = len(text) + sum(len(p) for p in watchlist)
         self.assertEqual(tel["input_size"], expected_size)
+        self.assertGreaterEqual(tel["time_ms"], 0.0)
+
+    def test_bipartite_empty_partitions(self):
+        res1 = global_bipartite_match([], [], {})
+        self.assertEqual(res1["result"]["pairs"], [])
+        self.assertEqual(res1["result"]["max_matches"], 0)
+        self.assertEqual(res1["telemetry"]["algorithm"], "Global Bipartite Matching")
+        self.assertEqual(res1["telemetry"]["unit"], "Unit IV")
+        self.assertEqual(res1["telemetry"]["complexity"], "O(K * V * E)")
+        self.assertEqual(res1["telemetry"]["input_size"], 0)
+
+        res2 = global_bipartite_match([{"item_id": 1}], [], {})
+        self.assertEqual(res2["result"]["pairs"], [])
+        self.assertEqual(res2["result"]["max_matches"], 0)
+
+        res3 = global_bipartite_match([], [{"item_id": 101}], {})
+        self.assertEqual(res3["result"]["pairs"], [])
+        self.assertEqual(res3["result"]["max_matches"], 0)
+
+    def test_bipartite_no_candidate_edges(self):
+        lost = [{"item_id": 1}, {"item_id": 2}]
+        found = [{"item_id": 101}, {"item_id": 102}]
+        res = global_bipartite_match(lost, found, {})
+        self.assertEqual(res["result"]["pairs"], [])
+        self.assertEqual(res["result"]["max_matches"], 0)
+
+    def test_bipartite_single_match(self):
+        lost = [{"item_id": 1}]
+        found = [{"item_id": 101}]
+        score_matrix = {1: {101: 0.88}}
+        res = global_bipartite_match(lost, found, score_matrix)
+        expected = [{"lost_id": 1, "found_id": 101, "score": 0.88}]
+        self.assertEqual(res["result"]["pairs"], expected)
+        self.assertEqual(res["result"]["max_matches"], 1)
+
+    def test_bipartite_greedy_suboptimal_classic(self):
+        lost = [{"item_id": 1}, {"item_id": 2}]
+        found = [{"item_id": 101}, {"item_id": 102}]
+        score_matrix = {
+            1: {101: 0.9, 102: 0.8},
+            2: {101: 0.85},
+        }
+        res = global_bipartite_match(lost, found, score_matrix)
+        expected = [
+            {"lost_id": 1, "found_id": 102, "score": 0.8},
+            {"lost_id": 2, "found_id": 101, "score": 0.85},
+        ]
+        self.assertEqual(res["result"]["pairs"], expected)
+        self.assertEqual(res["result"]["max_matches"], 2)
+
+    def test_bipartite_residual_reassignment(self):
+        lost = [{"item_id": 1}, {"item_id": 2}, {"item_id": 3}]
+        found = [{"item_id": 101}, {"item_id": 102}, {"item_id": 103}]
+        score_matrix = {
+            1: {101: 0.95, 102: 0.90},
+            2: {101: 0.90},
+            3: {103: 0.90},
+        }
+        res = global_bipartite_match(lost, found, score_matrix)
+        expected = [
+            {"lost_id": 1, "found_id": 102, "score": 0.90},
+            {"lost_id": 2, "found_id": 101, "score": 0.90},
+            {"lost_id": 3, "found_id": 103, "score": 0.90},
+        ]
+        self.assertEqual(res["result"]["pairs"], expected)
+        self.assertEqual(res["result"]["max_matches"], 3)
+
+    def test_bipartite_unequal_partitions(self):
+        lost = [{"item_id": 1}, {"item_id": 2}, {"item_id": 3}]
+        found = [{"item_id": 101}]
+        score_matrix = {
+            1: {101: 0.5},
+            2: {101: 0.9},
+            3: {101: 0.7},
+        }
+        res = global_bipartite_match(lost, found, score_matrix)
+        self.assertEqual(res["result"]["pairs"], [{"lost_id": 2, "found_id": 101, "score": 0.9}])
+        self.assertEqual(res["result"]["max_matches"], 1)
+
+        lost2 = [{"item_id": 1}]
+        found2 = [{"item_id": 101}, {"item_id": 102}, {"item_id": 103}]
+        score_matrix2 = {1: {101: 0.4, 102: 0.8, 103: 0.6}}
+        res2 = global_bipartite_match(lost2, found2, score_matrix2)
+        self.assertEqual(res2["result"]["pairs"], [{"lost_id": 1, "found_id": 102, "score": 0.8}])
+        self.assertEqual(res2["result"]["max_matches"], 1)
+
+    def test_bipartite_missing_scores(self):
+        lost = [{"item_id": 1}, {"item_id": 2}]
+        found = [{"item_id": 101}, {"item_id": 102}]
+        score_matrix = {
+            1: {102: 0.75},
+            2: {101: 0.65},
+        }
+        res = global_bipartite_match(lost, found, score_matrix)
+        expected = [
+            {"lost_id": 1, "found_id": 102, "score": 0.75},
+            {"lost_id": 2, "found_id": 101, "score": 0.65},
+        ]
+        self.assertEqual(res["result"]["pairs"], expected)
+        self.assertEqual(res["result"]["max_matches"], 2)
+
+    def test_bipartite_zero_and_negative_scores(self):
+        lost = [{"item_id": 1}, {"item_id": 2}]
+        found = [{"item_id": 101}, {"item_id": 102}]
+        score_matrix = {
+            1: {101: 0.0, 102: -0.5},
+            2: {101: -1.0},
+        }
+        res = global_bipartite_match(lost, found, score_matrix)
+        self.assertEqual(res["result"]["pairs"], [])
+        self.assertEqual(res["result"]["max_matches"], 0)
+
+    def test_bipartite_small_score_regression(self):
+        lost = [{"item_id": 1}]
+        found = [{"item_id": 101}]
+        score_matrix = {1: {101: 5e-10}}
+        res = global_bipartite_match(lost, found, score_matrix)
+        expected = [{"lost_id": 1, "found_id": 101, "score": 5e-10}]
+        self.assertEqual(res["result"]["pairs"], expected)
+        self.assertEqual(res["result"]["max_matches"], 1)
+
+    def test_bipartite_id_field_variations(self):
+        lost1 = [{"lost_id": 1}]
+        found1 = [{"found_id": 101}]
+        res1 = global_bipartite_match(lost1, found1, {1: {101: 0.8}})
+        self.assertEqual(len(res1["result"]["pairs"]), 1)
+
+        lost2 = [{"item_id": 2}]
+        found2 = [{"item_id": 102}]
+        res2 = global_bipartite_match(lost2, found2, {2: {102: 0.8}})
+        self.assertEqual(len(res2["result"]["pairs"]), 1)
+
+        lost3 = [{"lost_id": 3, "item_id": 3}]
+        found3 = [{"found_id": 103, "item_id": 103}]
+        res3 = global_bipartite_match(lost3, found3, {3: {103: 0.8}})
+        self.assertEqual(len(res3["result"]["pairs"]), 1)
+
+        with self.assertRaises(ValueError):
+            global_bipartite_match([{"lost_id": 1, "item_id": 2}], [{"found_id": 101}], {1: {101: 0.8}})
+        with self.assertRaises(ValueError):
+            global_bipartite_match([{"lost_id": 1}], [{"found_id": 101, "item_id": 102}], {1: {101: 0.8}})
+
+    def test_bipartite_invalid_ids(self):
+        with self.assertRaises(ValueError):
+            global_bipartite_match([{"name": "No ID"}], [{"found_id": 101}], {})
+        with self.assertRaises(ValueError):
+            global_bipartite_match([{"lost_id": 0}], [{"found_id": 101}], {})
+        with self.assertRaises(ValueError):
+            global_bipartite_match([{"lost_id": -5}], [{"found_id": 101}], {})
+        with self.assertRaises(ValueError):
+            global_bipartite_match([{"lost_id": True}], [{"found_id": 101}], {})
+        with self.assertRaises(ValueError):
+            global_bipartite_match([{"lost_id": "1"}], [{"found_id": 101}], {})
+
+    def test_bipartite_duplicate_ids(self):
+        with self.assertRaises(ValueError):
+            global_bipartite_match([{"lost_id": 1}, {"lost_id": 1}], [{"found_id": 101}], {})
+        with self.assertRaises(ValueError):
+            global_bipartite_match([{"lost_id": 1}], [{"found_id": 101}, {"found_id": 101}], {})
+
+    def test_bipartite_unknown_score_matrix_ids(self):
+        lost = [{"lost_id": 1}]
+        found = [{"found_id": 101}]
+        with self.assertRaises(ValueError):
+            global_bipartite_match(lost, found, {99: {101: 0.5}})
+        with self.assertRaises(ValueError):
+            global_bipartite_match(lost, found, {1: {999: 0.5}})
+
+    def test_bipartite_invalid_scores(self):
+        lost = [{"lost_id": 1}]
+        found = [{"found_id": 101}]
+        with self.assertRaises(ValueError):
+            global_bipartite_match(lost, found, {1: {101: "high"}})
+        with self.assertRaises(ValueError):
+            global_bipartite_match(lost, found, {1: {101: True}})
+        with self.assertRaises(ValueError):
+            global_bipartite_match(lost, found, {1: {101: float("nan")}})
+        with self.assertRaises(ValueError):
+            global_bipartite_match(lost, found, {1: {101: float("inf")}})
+        with self.assertRaises(ValueError):
+            global_bipartite_match(lost, found, {1: {101: float("-inf")}})
+
+    def test_bipartite_tuple_dict_rejected(self):
+        lost = [{"lost_id": 1}]
+        found = [{"found_id": 101}]
+        with self.assertRaises(ValueError):
+            global_bipartite_match(lost, found, {(1, 101): 0.85})
+
+    def test_bipartite_deterministic_runs(self):
+        lost = [{"item_id": 2}, {"item_id": 1}]
+        found = [{"item_id": 202}, {"item_id": 201}]
+        score_matrix = {
+            1: {201: 0.7, 202: 0.7},
+            2: {201: 0.7, 202: 0.7},
+        }
+        res1 = global_bipartite_match(lost, found, score_matrix)
+        res2 = global_bipartite_match(lost, found, score_matrix)
+        self.assertEqual(res1["result"], res2["result"])
+
+    def test_bipartite_input_immutability(self):
+        lost = [{"item_id": 1, "title": "Keys"}]
+        found = [{"item_id": 101, "title": "Keys Found"}]
+        score_matrix = {1: {101: 0.95}}
+        lost_copy = [dict(it) for it in lost]
+        found_copy = [dict(it) for it in found]
+        sm_copy = {1: dict(score_matrix[1])}
+
+        global_bipartite_match(lost, found, score_matrix)
+        self.assertEqual(lost, lost_copy)
+        self.assertEqual(found, found_copy)
+        self.assertEqual(score_matrix, sm_copy)
+
+    def test_bipartite_telemetry(self):
+        lost = [{"item_id": 1}]
+        found = [{"item_id": 101}]
+        score_matrix = {1: {101: 0.85}}
+        res = global_bipartite_match(lost, found, score_matrix)
+        tel = res["telemetry"]
+        self.assertEqual(tel["algorithm"], "Global Bipartite Matching")
+        self.assertEqual(tel["unit"], "Unit IV")
+        self.assertEqual(tel["complexity"], "O(K * V * E)")
+        self.assertEqual(tel["input_size"], 3)
         self.assertGreaterEqual(tel["time_ms"], 0.0)
 
 
