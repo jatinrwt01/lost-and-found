@@ -1,0 +1,240 @@
+import math
+import unittest
+
+from algorithms import (
+    assign_conflict_free_slots,
+    binary_search_item_id,
+    cluster_duplicate_items,
+    compute_dropbox_mst,
+    schedule_urgent_claims,
+    shortest_campus_path,
+    sort_items,
+)
+
+
+class TestUnit1Algorithms(unittest.TestCase):
+    def test_merge_sort_basic(self):
+        items = [
+            {"id": 1, "priority": 25},
+            {"id": 2, "priority": 10},
+            {"id": 3, "priority": 15},
+        ]
+        res = sort_items(items, "priority", method="merge")
+        self.assertEqual([x["priority"] for x in res["result"]], [10, 15, 25])
+        self.assertEqual(res["telemetry"]["algorithm"], "Merge Sort")
+        self.assertEqual(res["telemetry"]["unit"], "Unit I")
+        self.assertEqual(res["telemetry"]["complexity"], "O(n log n)")
+        self.assertEqual(res["telemetry"]["input_size"], 3)
+
+    def test_quick_sort_basic(self):
+        items = [
+            {"id": 1, "priority": 30},
+            {"id": 2, "priority": 5},
+            {"id": 3, "priority": 20},
+        ]
+        res = sort_items(items, "priority", method="quick")
+        self.assertEqual([x["priority"] for x in res["result"]], [5, 20, 30])
+        self.assertEqual(res["telemetry"]["algorithm"], "Quick Sort")
+        self.assertEqual(res["telemetry"]["complexity"], "O(n log n) average case")
+
+    def test_sort_invalid_method(self):
+        with self.assertRaises(ValueError):
+            sort_items([], "priority", method="bubble")
+
+    def test_binary_search(self):
+        items = [
+            {"item_id": 10, "title": "Keys"},
+            {"item_id": 20, "title": "Phone"},
+            {"item_id": 30, "title": "Wallet"},
+        ]
+        res = binary_search_item_id(items, 20)
+        self.assertEqual(res["result"]["title"], "Phone")
+        self.assertEqual(res["telemetry"]["algorithm"], "Binary Search")
+        self.assertIsNone(binary_search_item_id(items, 99)["result"])
+        self.assertIsNone(binary_search_item_id([], 10)["result"])
+
+    def test_cluster_duplicate_items(self):
+        items = [
+            {"item_id": 1, "status": "OPEN", "loc_id": 1, "type": "LOST", "category": "Electronics", "title": "  Phone "},
+            {"item_id": 2, "status": "OPEN", "loc_id": 1, "type": "LOST", "category": "Electronics", "title": "PHONE"},
+            {"item_id": 3, "status": "CLAIMED", "loc_id": 1, "type": "LOST", "category": "Electronics", "title": "Phone"},
+            {"item_id": 4, "status": "OPEN", "loc_id": None, "type": "LOST", "category": "Electronics", "title": "Phone"},
+        ]
+        res = cluster_duplicate_items(items)
+        self.assertTrue(res["result"]["duplicate_found"])
+        clusters = list(res["result"]["clusters"].values())
+        self.assertEqual(len(clusters), 1)
+        self.assertEqual(sorted(clusters[0]), [1, 2])
+
+
+class TestUnit2Algorithms(unittest.TestCase):
+    def test_dijkstra_shortest_path(self):
+        edges = [
+            {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 100.0},
+            {"src_loc_id": 2, "dst_loc_id": 3, "distance_meters": 150.0},
+            {"src_loc_id": 1, "dst_loc_id": 3, "distance_meters": 300.0},
+        ]
+        res = shortest_campus_path(edges, 1, 3)
+        self.assertEqual(res["result"]["path"], [1, 2, 3])
+        self.assertEqual(res["result"]["total_meters"], 250.0)
+        self.assertEqual(res["telemetry"]["algorithm"], "Dijkstra's Algorithm")
+
+    def test_dijkstra_identity_and_unreachable(self):
+        edges = [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 50.0}]
+        self.assertEqual(shortest_campus_path(edges, 1, 1)["result"]["path"], [1])
+        self.assertEqual(shortest_campus_path(edges, 1, 1)["result"]["total_meters"], 0.0)
+        self.assertEqual(shortest_campus_path(edges, 1, 99)["result"]["total_meters"], -1.0)
+        self.assertEqual(shortest_campus_path(edges, 1, 99)["result"]["path"], [])
+
+    def test_dijkstra_invalid_weights(self):
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": -5.0}], 1, 2)
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": float("nan")}], 1, 2)
+
+    def test_kruskal_mst(self):
+        edges = [
+            {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 10.0},
+            {"src_loc_id": 2, "dst_loc_id": 3, "distance_meters": 15.0},
+            {"src_loc_id": 1, "dst_loc_id": 3, "distance_meters": 20.0},
+        ]
+        res = compute_dropbox_mst(3, edges)
+        self.assertEqual(len(res["result"]["mst_edges"]), 2)
+        self.assertEqual(res["result"]["total_cable_or_walk_meters"], 25.0)
+        self.assertEqual(res["telemetry"]["algorithm"], "Kruskal's Algorithm")
+        self.assertEqual(res["telemetry"]["complexity"], "O(V + E log E)")
+
+    def test_kruskal_validation(self):
+        with self.assertRaises(ValueError):
+            compute_dropbox_mst(-1, [])
+        with self.assertRaises(ValueError):
+            compute_dropbox_mst(3, [{"src_loc_id": True, "dst_loc_id": 2, "distance_meters": 10.0}])
+        with self.assertRaises(ValueError):
+            compute_dropbox_mst(3, [{"src_loc_id": 1, "dst_loc_id": 4, "distance_meters": 10.0}])
+
+    def test_job_sequencing(self):
+        claims = [
+            {"claim_id": 1, "priority_value": 50, "deadline_hours": 2},
+            {"claim_id": 2, "priority_value": 10, "deadline_hours": 1},
+            {"claim_id": 3, "priority_value": 15, "deadline_hours": 2},
+            {"claim_id": 4, "priority_value": 30, "deadline_hours": 1},
+            {"claim_id": 5, "priority_value": 20, "deadline_hours": 0},
+        ]
+        res = schedule_urgent_claims(claims)
+        self.assertEqual(res["result"]["total_priority_saved"], 80)
+        scheduled = res["result"]["scheduled_claims"]
+        self.assertEqual(len(scheduled), 2)
+        self.assertEqual(scheduled[0]["claim_id"], 4)
+        self.assertEqual(scheduled[0]["assigned_slot"], 1)
+        self.assertEqual(scheduled[1]["claim_id"], 1)
+        self.assertEqual(scheduled[1]["assigned_slot"], 2)
+        self.assertEqual(res["telemetry"]["algorithm"], "Greedy Job Sequencing")
+        self.assertEqual(res["telemetry"]["complexity"], "O(n^2)")
+
+
+class TestGraphColoringBacktracking(unittest.TestCase):
+    def test_empty_matches(self):
+        res = assign_conflict_free_slots([])
+        self.assertEqual(res["result"]["slot_assignments"], {})
+        self.assertEqual(res["result"]["chromatic_number"], 0)
+        self.assertEqual(res["telemetry"]["algorithm"], "Graph Coloring (Backtracking)")
+        self.assertEqual(res["telemetry"]["unit"], "Unit II")
+        self.assertEqual(res["telemetry"]["complexity"], "O(m^V) pruned")
+        self.assertEqual(res["telemetry"]["input_size"], 0)
+
+    def test_single_match(self):
+        matches = [{"match_id": 1, "student_id": 101, "admin_id": 1}]
+        res = assign_conflict_free_slots(matches)
+        self.assertEqual(res["result"]["slot_assignments"], {1: 1})
+        self.assertEqual(res["result"]["chromatic_number"], 1)
+        self.assertEqual(res["telemetry"]["input_size"], 1)
+
+    def test_no_conflicts_independent_set(self):
+        matches = [
+            {"match_id": 1, "student_id": 101, "admin_id": 1},
+            {"match_id": 2, "student_id": 102, "admin_id": 2},
+            {"match_id": 3, "student_id": 103, "admin_id": 3},
+        ]
+        res = assign_conflict_free_slots(matches)
+        self.assertEqual(res["result"]["chromatic_number"], 1)
+        self.assertEqual(res["result"]["slot_assignments"], {1: 1, 2: 1, 3: 1})
+
+    def test_all_conflicts_clique(self):
+        matches = [
+            {"match_id": 1, "student_id": 101, "admin_id": 1},
+            {"match_id": 2, "student_id": 101, "admin_id": 2},
+            {"match_id": 3, "student_id": 101, "admin_id": 3},
+        ]
+        res = assign_conflict_free_slots(matches)
+        self.assertEqual(res["result"]["chromatic_number"], 3)
+        assigned_slots = list(res["result"]["slot_assignments"].values())
+        self.assertEqual(sorted(assigned_slots), [1, 2, 3])
+
+    def test_prd_example_scenario(self):
+        matches = [
+            {"match_id": 1, "student_id": 101, "admin_id": 1},
+            {"match_id": 2, "student_id": 102, "admin_id": 1},
+            {"match_id": 3, "student_id": 101, "admin_id": 2},
+            {"match_id": 4, "student_id": 103, "admin_id": 3},
+        ]
+        matches_copy = [dict(m) for m in matches]
+        res = assign_conflict_free_slots(matches)
+
+        # Non-mutation check
+        self.assertEqual(matches, matches_copy)
+
+        slots = res["result"]["slot_assignments"]
+        self.assertEqual(res["result"]["chromatic_number"], 2)
+        # Match 1 conflicts with Match 2 (admin 1) and Match 3 (student 101)
+        self.assertNotEqual(slots[1], slots[2])
+        self.assertNotEqual(slots[1], slots[3])
+        # All assigned slots must be in 1..chromatic_number
+        for s in slots.values():
+            self.assertIn(s, [1, 2])
+
+    def test_dual_conflict(self):
+        matches = [
+            {"match_id": 1, "student_id": 101, "admin_id": 1},
+            {"match_id": 2, "student_id": 101, "admin_id": 1},
+        ]
+        res = assign_conflict_free_slots(matches)
+        self.assertEqual(res["result"]["chromatic_number"], 2)
+        self.assertNotEqual(res["result"]["slot_assignments"][1], res["result"]["slot_assignments"][2])
+
+    def test_validation_errors(self):
+        # Non-list input
+        with self.assertRaises(ValueError):
+            assign_conflict_free_slots("invalid")
+
+        # Non-dict element
+        with self.assertRaises(ValueError):
+            assign_conflict_free_slots([1])
+
+        # Missing required field
+        with self.assertRaises(ValueError):
+            assign_conflict_free_slots([{"match_id": 1, "student_id": 101}])
+
+        # Boolean ID rejection
+        with self.assertRaises(ValueError):
+            assign_conflict_free_slots([{"match_id": True, "student_id": 101, "admin_id": 1}])
+        with self.assertRaises(ValueError):
+            assign_conflict_free_slots([{"match_id": 1, "student_id": False, "admin_id": 1}])
+        with self.assertRaises(ValueError):
+            assign_conflict_free_slots([{"match_id": 1, "student_id": 101, "admin_id": True}])
+
+        # Non-positive ID
+        with self.assertRaises(ValueError):
+            assign_conflict_free_slots([{"match_id": 0, "student_id": 101, "admin_id": 1}])
+        with self.assertRaises(ValueError):
+            assign_conflict_free_slots([{"match_id": 1, "student_id": -5, "admin_id": 1}])
+
+        # Duplicate match_id
+        with self.assertRaises(ValueError):
+            assign_conflict_free_slots([
+                {"match_id": 1, "student_id": 101, "admin_id": 1},
+                {"match_id": 1, "student_id": 102, "admin_id": 2},
+            ])
+
+
+if __name__ == "__main__":
+    unittest.main()

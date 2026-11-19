@@ -1,6 +1,6 @@
 import heapq
 import math
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Set
 from algorithms.metrics import measure_daa
 
 UNREACHABLE_SENTINEL = -1.0
@@ -208,3 +208,95 @@ def schedule_urgent_claims(claims: List[Dict[str, Any]]) -> Dict[str, Any]:
         "scheduled_claims": scheduled_claims,
         "total_priority_saved": total_priority_saved,
     }
+
+
+def _is_safe_color(node: int, color: int, color_map: Dict[int, int], adj: Dict[int, Set[int]]) -> bool:
+    for neighbor in adj[node]:
+        if color_map.get(neighbor) == color:
+            return False
+    return True
+
+
+def _color_graph_backtracking(
+    ordered_nodes: List[int],
+    index: int,
+    max_colors: int,
+    color_map: Dict[int, int],
+    adj: Dict[int, Set[int]],
+) -> bool:
+    if index == len(ordered_nodes):
+        return True
+
+    node = ordered_nodes[index]
+    for color in range(1, max_colors + 1):
+        if _is_safe_color(node, color, color_map, adj):
+            color_map[node] = color
+            if _color_graph_backtracking(ordered_nodes, index + 1, max_colors, color_map, adj):
+                return True
+            del color_map[node]
+
+    return False
+
+
+# Note on complexity:
+# For a fixed m, testing m-colorability using backtracking has worst-case time complexity
+# O(m^V) pruned by the safe-color neighborhood check.
+# Finding the minimum chromatic number searches m sequentially from 1 to chi(G), taking
+# sum_{k=1}^{chi(G)} O(k^V pruned) in aggregate.
+@measure_daa(
+    algorithm="Graph Coloring (Backtracking)",
+    unit="Unit II",
+    complexity="O(m^V) pruned",
+    input_size_fn=lambda *args, **kwargs: len(args[0]) if args else len(kwargs.get("matches", [])),
+)
+def assign_conflict_free_slots(matches: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(matches, list):
+        raise ValueError(f"matches must be a list, got {type(matches).__name__}")
+
+    if not matches:
+        return {"slot_assignments": {}, "chromatic_number": 0}
+
+    seen_match_ids: Set[int] = set()
+    for idx, m in enumerate(matches):
+        if not isinstance(m, dict):
+            raise ValueError(f"Match element at index {idx} must be a dictionary, got {type(m).__name__}")
+
+        for field in ("match_id", "student_id", "admin_id"):
+            if field not in m:
+                raise ValueError(f"Match at index {idx} missing required field '{field}'")
+            val = m[field]
+            if not isinstance(val, int) or isinstance(val, bool) or val <= 0:
+                raise ValueError(f"Match field '{field}' must be a positive integer, got {val!r}")
+
+        match_id = m["match_id"]
+        if match_id in seen_match_ids:
+            raise ValueError(f"Duplicate match_id detected: {match_id}")
+        seen_match_ids.add(match_id)
+
+    # Build undirected conflict graph
+    adj: Dict[int, Set[int]] = {m["match_id"]: set() for m in matches}
+    n = len(matches)
+    for i in range(n):
+        m1 = matches[i]
+        id1 = m1["match_id"]
+        for j in range(i + 1, n):
+            m2 = matches[j]
+            id2 = m2["match_id"]
+            if m1["student_id"] == m2["student_id"] or m1["admin_id"] == m2["admin_id"]:
+                adj[id1].add(id2)
+                adj[id2].add(id1)
+
+    # Descending-degree vertex ordering for backtracking: color constrained vertices first.
+    # Secondary sort by ascending match_id provides deterministic tie-breaking.
+    ordered_nodes = sorted(adj.keys(), key=lambda node: (-len(adj[node]), node))
+
+    for m in range(1, n + 1):
+        color_map: Dict[int, int] = {}
+        if _color_graph_backtracking(ordered_nodes, 0, m, color_map, adj):
+            slot_assignments = {m_elem["match_id"]: color_map[m_elem["match_id"]] for m_elem in matches}
+            return {
+                "slot_assignments": slot_assignments,
+                "chromatic_number": m,
+            }
+
+    return {"slot_assignments": {}, "chromatic_number": 0}
