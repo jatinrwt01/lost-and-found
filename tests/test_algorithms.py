@@ -2,6 +2,7 @@ import math
 import unittest
 
 from algorithms import (
+    all_pairs_shortest_paths,
     assign_conflict_free_slots,
     binary_search_item_id,
     cluster_duplicate_items,
@@ -295,6 +296,145 @@ class TestUnit3Algorithms(unittest.TestCase):
             compute_lcs_similarity(123, "text")
         with self.assertRaises(TypeError):
             compute_lcs_similarity("text", None)
+
+    def test_floyd_warshall_empty_graph(self):
+        res = all_pairs_shortest_paths(0, [])
+        self.assertEqual(res["result"]["dist_matrix"], [])
+        self.assertEqual(res["telemetry"]["algorithm"], "Floyd-Warshall")
+        self.assertEqual(res["telemetry"]["unit"], "Unit III")
+        self.assertEqual(res["telemetry"]["complexity"], "O(V^3)")
+        self.assertEqual(res["telemetry"]["input_size"], 0)
+
+    def test_floyd_warshall_single_node(self):
+        res = all_pairs_shortest_paths(1, [])
+        self.assertEqual(res["result"]["dist_matrix"], [[0.0]])
+        self.assertEqual(res["telemetry"]["input_size"], 1)
+
+    def test_floyd_warshall_prd_example(self):
+        edges = [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 4.0}]
+        res = all_pairs_shortest_paths(2, edges)
+        expected = [
+            [0.0, 4.0],
+            [4.0, 0.0],
+        ]
+        self.assertEqual(res["result"]["dist_matrix"], expected)
+        self.assertEqual(res["telemetry"]["input_size"], 2)
+
+    def test_floyd_warshall_multihop_and_relaxation(self):
+        edges = [
+            {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 3.0},
+            {"src_loc_id": 2, "dst_loc_id": 3, "distance_meters": 5.0},
+        ]
+        res = all_pairs_shortest_paths(3, edges)
+        expected = [
+            [0.0, 3.0, 8.0],
+            [3.0, 0.0, 5.0],
+            [8.0, 5.0, 0.0],
+        ]
+        self.assertEqual(res["result"]["dist_matrix"], expected)
+
+    def test_floyd_warshall_shortcut(self):
+        edges = [
+            {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 10.0},
+            {"src_loc_id": 2, "dst_loc_id": 3, "distance_meters": 10.0},
+            {"src_loc_id": 1, "dst_loc_id": 3, "distance_meters": 5.0},
+        ]
+        res = all_pairs_shortest_paths(3, edges)
+        expected = [
+            [0.0, 10.0, 5.0],
+            [10.0, 0.0, 10.0],
+            [5.0, 10.0, 0.0],
+        ]
+        self.assertEqual(res["result"]["dist_matrix"], expected)
+
+    def test_floyd_warshall_disconnected_graph(self):
+        edges = [
+            {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 2.5},
+            {"src_loc_id": 3, "dst_loc_id": 4, "distance_meters": 6.0},
+        ]
+        res = all_pairs_shortest_paths(4, edges)
+        matrix = res["result"]["dist_matrix"]
+        self.assertEqual(matrix[0][1], 2.5)
+        self.assertEqual(matrix[1][0], 2.5)
+        self.assertEqual(matrix[2][3], 6.0)
+        self.assertEqual(matrix[3][2], 6.0)
+        self.assertEqual(matrix[0][2], -1.0)
+        self.assertEqual(matrix[0][3], -1.0)
+        self.assertEqual(matrix[1][2], -1.0)
+        self.assertEqual(matrix[1][3], -1.0)
+        self.assertEqual(matrix[2][0], -1.0)
+        self.assertEqual(matrix[3][0], -1.0)
+
+    def test_floyd_warshall_parallel_edges_keeps_minimum(self):
+        edges = [
+            {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 15.0},
+            {"src_loc_id": 2, "dst_loc_id": 1, "distance_meters": 4.5},
+            {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 8.0},
+        ]
+        res = all_pairs_shortest_paths(2, edges)
+        self.assertEqual(res["result"]["dist_matrix"], [[0.0, 4.5], [4.5, 0.0]])
+
+    def test_floyd_warshall_self_loop_ignored(self):
+        edges = [
+            {"src_loc_id": 1, "dst_loc_id": 1, "distance_meters": 10.0},
+            {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 3.0},
+        ]
+        res = all_pairs_shortest_paths(2, edges)
+        self.assertEqual(res["result"]["dist_matrix"], [[0.0, 3.0], [3.0, 0.0]])
+
+    def test_floyd_warshall_preserves_edges_input(self):
+        original_edges = [
+            {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 5.0},
+        ]
+        edges_copy = [dict(e) for e in original_edges]
+        all_pairs_shortest_paths(2, original_edges)
+        self.assertEqual(original_edges, edges_copy)
+
+    def test_floyd_warshall_invalid_num_nodes(self):
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(-1, [])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(True, [])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(False, [])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths("3", [])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2.5, [])
+
+    def test_floyd_warshall_invalid_edges_structure(self):
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, "not_a_list")
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, None)
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, ["not_a_dict"])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": 2}])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 1, "distance_meters": 4.0}])
+
+    def test_floyd_warshall_invalid_endpoints(self):
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 0, "dst_loc_id": 2, "distance_meters": 4.0}])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": 3, "distance_meters": 4.0}])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": True, "dst_loc_id": 2, "distance_meters": 4.0}])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": "2", "distance_meters": 4.0}])
+
+    def test_floyd_warshall_invalid_weights(self):
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": True}])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": "five"}])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": -1.0}])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": float("inf")}])
+        with self.assertRaises(ValueError):
+            all_pairs_shortest_paths(2, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": float("nan")}])
 
 
 if __name__ == "__main__":
