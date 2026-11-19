@@ -2,6 +2,7 @@ import unittest
 
 from algorithms import (
     binary_search_item_id,
+    bitonic_sort_scores,
     cluster_duplicate_items,
     global_bipartite_match,
     kmp_search_items,
@@ -629,6 +630,215 @@ class TestUnit4Algorithms(unittest.TestCase):
         self.assertEqual(tel["complexity"], "O(K * V * E)")
         self.assertEqual(tel["input_size"], 3)
         self.assertGreaterEqual(tel["time_ms"], 0.0)
+
+    def test_bitonic_empty_input(self):
+        res = bitonic_sort_scores([])
+        self.assertEqual(res["result"], {"sorted_candidates": []})
+        self.assertEqual(res["telemetry"]["algorithm"], "Bitonic Sort")
+        self.assertEqual(res["telemetry"]["unit"], "Unit IV")
+        self.assertEqual(res["telemetry"]["complexity"], "O(n log^2 n)")
+        self.assertEqual(res["telemetry"]["input_size"], 0)
+
+    def test_bitonic_single_candidate(self):
+        candidates = [{"id": 1, "score": 0.75}]
+        res = bitonic_sort_scores(candidates)
+        self.assertEqual(res["result"]["sorted_candidates"], [{"id": 1, "score": 0.75}])
+        self.assertEqual(len(res["result"]["sorted_candidates"]), 1)
+
+    def test_bitonic_power_of_two_sorted(self):
+        candidates = [
+            {"id": 1, "score": 0.95},
+            {"id": 2, "score": 0.70},
+            {"id": 3, "score": 0.50},
+            {"id": 4, "score": 0.20},
+        ]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual(len(sorted_res), 4)
+        self.assertEqual([c["id"] for c in sorted_res], [1, 2, 3, 4])
+        self.assertFalse(any(c.get("pad") for c in sorted_res))
+
+    def test_bitonic_power_of_two_reverse(self):
+        candidates = [
+            {"id": 4, "score": 0.20},
+            {"id": 3, "score": 0.50},
+            {"id": 2, "score": 0.70},
+            {"id": 1, "score": 0.95},
+        ]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual(len(sorted_res), 4)
+        self.assertEqual([c["id"] for c in sorted_res], [1, 2, 3, 4])
+
+    def test_bitonic_non_power_of_two_padding_length3(self):
+        candidates = [
+            {"id": "A", "score": 0.40},
+            {"id": "B", "score": 0.90},
+            {"id": "C", "score": 0.10},
+        ]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual(len(sorted_res), 4)
+        # Real candidates first, descending
+        self.assertEqual(sorted_res[0]["id"], "B")
+        self.assertEqual(sorted_res[1]["id"], "A")
+        self.assertEqual(sorted_res[2]["id"], "C")
+        # Dummy at index 3
+        self.assertEqual(sorted_res[3], {"pad": True, "score": None})
+
+    def test_bitonic_non_power_of_two_padding_length5(self):
+        candidates = [
+            {"id": 1, "score": 0.1},
+            {"id": 2, "score": 0.9},
+            {"id": 3, "score": 0.5},
+            {"id": 4, "score": 0.8},
+            {"id": 5, "score": 0.2},
+        ]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual(len(sorted_res), 8)
+        real_ids = [c["id"] for c in sorted_res[:5]]
+        self.assertEqual(real_ids, [2, 4, 3, 5, 1])
+        for dummy in sorted_res[5:]:
+            self.assertEqual(dummy, {"pad": True, "score": None})
+
+    def test_bitonic_deterministic_ties_stability(self):
+        candidates = [
+            {"id": "first", "score": 0.8},
+            {"id": "second", "score": 0.8},
+            {"id": "third", "score": 0.8},
+        ]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual(len(sorted_res), 4)
+        self.assertEqual([c["id"] for c in sorted_res[:3]], ["first", "second", "third"])
+        self.assertEqual(sorted_res[3], {"pad": True, "score": None})
+
+    def test_bitonic_numerical_robustness(self):
+        candidates = [
+            {"id": "neg", "score": -5.0},
+            {"id": "huge", "score": 1e12},
+            {"id": "zero", "score": 0.0},
+            {"id": "tiny", "score": 1e-10},
+        ]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual([c["id"] for c in sorted_res], ["huge", "tiny", "zero", "neg"])
+
+    def test_bitonic_integer_scores(self):
+        candidates = [
+            {"id": 1, "score": 10},
+            {"id": 2, "score": 100},
+            {"id": 3, "score": 50},
+        ]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual([c["id"] for c in sorted_res[:3]], [2, 3, 1])
+        self.assertEqual(sorted_res[3], {"pad": True, "score": None})
+
+    def test_bitonic_large_integer_precision(self):
+        val_low = 2**53
+        val_high = 2**53 + 1
+        candidates = [
+            {"id": "low", "score": val_low},
+            {"id": "high", "score": val_high},
+        ]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual([c["id"] for c in sorted_res], ["high", "low"])
+        self.assertEqual(sorted_res[0]["score"], val_high)
+        self.assertEqual(sorted_res[1]["score"], val_low)
+
+    def test_bitonic_arbitrary_precision_no_overflow(self):
+        huge_1 = 10**400
+        huge_2 = 10**400 + 50
+        smaller = 10**300
+        candidates = [
+            {"id": "smaller", "score": smaller},
+            {"id": "huge_1", "score": huge_1},
+            {"id": "huge_2", "score": huge_2},
+        ]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual(len(sorted_res), 4)
+        self.assertEqual([c["id"] for c in sorted_res[:3]], ["huge_2", "huge_1", "smaller"])
+        self.assertEqual(sorted_res[3], {"pad": True, "score": None})
+
+    def test_bitonic_input_immutability(self):
+        candidates = [
+            {"id": 1, "score": 0.3},
+            {"id": 2, "score": 0.9},
+        ]
+        cand_copy = [dict(c) for c in candidates]
+        res = bitonic_sort_scores(candidates)
+        self.assertEqual(candidates, cand_copy)
+        # Modify returned dict to ensure shallow copy independence
+        res["result"]["sorted_candidates"][0]["score"] = 999.0
+        self.assertEqual(candidates[1]["score"], 0.9)
+
+    def test_bitonic_larger_input_p16(self):
+        scores = [0.12, 0.85, 0.33, 0.99, 0.45, 0.72, 0.01, 0.85, 0.60, 0.55]
+        candidates = [{"id": i, "score": s} for i, s in enumerate(scores)]
+        res = bitonic_sort_scores(candidates)
+        sorted_res = res["result"]["sorted_candidates"]
+        self.assertEqual(len(sorted_res), 16)
+        # 10 real candidates
+        real_scores = [c["score"] for c in sorted_res[:10]]
+        self.assertEqual(real_scores, sorted(scores, reverse=True))
+        # 6 dummy candidates
+        for dummy in sorted_res[10:]:
+            self.assertEqual(dummy, {"pad": True, "score": None})
+
+    def test_bitonic_invalid_candidate_list(self):
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores("not a list")
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores({"score": 1.0})
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores(None)
+
+    def test_bitonic_invalid_candidate_elements(self):
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([{"score": 1.0}, "invalid_element"])
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([None])
+
+    def test_bitonic_missing_score_field(self):
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([{"id": 1, "confidence": 0.9}])
+
+    def test_bitonic_boolean_score_rejected(self):
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([{"score": True}])
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([{"score": False}])
+
+    def test_bitonic_non_numeric_score_rejected(self):
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([{"score": "0.95"}])
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([{"score": [1.0]}])
+
+    def test_bitonic_non_finite_score_rejected(self):
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([{"score": float("nan")}])
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([{"score": float("inf")}])
+        with self.assertRaises(ValueError):
+            bitonic_sort_scores([{"score": float("-inf")}])
+
+    def test_bitonic_telemetry_envelope(self):
+        candidates = [{"id": 1, "score": 0.5}, {"id": 2, "score": 0.8}]
+        res = bitonic_sort_scores(candidates)
+        self.assertIn("result", res)
+        self.assertIn("telemetry", res)
+        tel = res["telemetry"]
+        self.assertEqual(tel["algorithm"], "Bitonic Sort")
+        self.assertEqual(tel["unit"], "Unit IV")
+        self.assertEqual(tel["complexity"], "O(n log^2 n)")
+        self.assertEqual(tel["input_size"], 2)
+        self.assertGreaterEqual(tel["time_ms"], 0.0)
+
 
 
 if __name__ == "__main__":

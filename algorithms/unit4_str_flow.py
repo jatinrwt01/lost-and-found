@@ -1,5 +1,5 @@
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from algorithms.metrics import measure_daa
 
 SEARCHABLE_FIELDS = ("title", "category", "description", "serial_tag")
@@ -500,3 +500,92 @@ def global_bipartite_match(
         "pairs": pairs,
         "max_matches": len(pairs),
     }
+
+
+class _BitonicItem:
+    __slots__ = ("is_real", "score", "original_index", "payload")
+
+    def __init__(self, is_real: bool, score: Union[int, float], original_index: int, payload: Dict[str, Any]):
+        self.is_real = is_real
+        self.score = score
+        self.original_index = original_index
+        self.payload = payload
+
+    def canonical_key(self) -> tuple:
+        # Real items rank higher than dummies (1 vs 0).
+        # Tied scores rank higher for smaller original indices (-idx).
+        return (1 if self.is_real else 0, self.score, -self.original_index)
+
+
+def _is_less_canonical(a: _BitonicItem, b: _BitonicItem) -> bool:
+    return a.canonical_key() < b.canonical_key()
+
+
+def _bitonic_merge(arr: List[_BitonicItem], low: int, cnt: int, dir_up: bool) -> None:
+    if cnt <= 1:
+        return
+    k = cnt // 2
+    for i in range(low, low + k):
+        j = i + k
+        # Ascending swaps if arr[j] < arr[i]; descending reverses to swap if arr[i] < arr[j].
+        should_swap = (
+            _is_less_canonical(arr[j], arr[i])
+            if dir_up
+            else _is_less_canonical(arr[i], arr[j])
+        )
+        if should_swap:
+            arr[i], arr[j] = arr[j], arr[i]
+    _bitonic_merge(arr, low, k, dir_up)
+    _bitonic_merge(arr, low + k, k, dir_up)
+
+
+def _bitonic_sort(arr: List[_BitonicItem], low: int, cnt: int, dir_up: bool) -> None:
+    if cnt <= 1:
+        return
+    k = cnt // 2
+    _bitonic_sort(arr, low, k, True)
+    _bitonic_sort(arr, low + k, k, False)
+    _bitonic_merge(arr, low, cnt, dir_up)
+
+
+@measure_daa(
+    algorithm="Bitonic Sort",
+    unit="Unit IV",
+    complexity="O(n log^2 n)",
+    input_size_fn=lambda candidates, *args, **kwargs: len(candidates) if isinstance(candidates, list) else 0,
+)
+def bitonic_sort_scores(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(candidates, list):
+        raise ValueError(f"candidates must be a list, got {type(candidates).__name__}")
+
+    n = len(candidates)
+    if n == 0:
+        return {"sorted_candidates": []}
+
+    items: List[_BitonicItem] = []
+    for idx, cand in enumerate(candidates):
+        if not isinstance(cand, dict):
+            raise ValueError(f"Candidate at index {idx} must be a dict, got {type(cand).__name__}")
+        if "score" not in cand:
+            raise ValueError(f"Candidate at index {idx} missing required 'score' field")
+
+        score = cand["score"]
+        if isinstance(score, bool):
+            raise ValueError(f"Candidate at index {idx} score must not be a boolean")
+        if not isinstance(score, (int, float)):
+            raise ValueError(f"Candidate at index {idx} score must be numeric, got {type(score).__name__}")
+        if isinstance(score, float) and (math.isnan(score) or math.isinf(score)):
+            raise ValueError(f"Candidate at index {idx} score must be a finite number")
+
+        items.append(_BitonicItem(True, score, idx, dict(cand)))
+
+    # Pad up to next power of 2
+    p = 1 if n == 1 else 1 << (n - 1).bit_length()
+    for d in range(p - n):
+        dummy_dict = {"pad": True, "score": None}
+        items.append(_BitonicItem(False, 0, d, dummy_dict))
+
+    _bitonic_sort(items, 0, p, False)
+
+    return {"sorted_candidates": [item.payload for item in items]}
+
