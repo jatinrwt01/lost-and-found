@@ -6,6 +6,7 @@ from algorithms import (
     binary_search_item_id,
     cluster_duplicate_items,
     compute_dropbox_mst,
+    compute_lcs_similarity,
     schedule_urgent_claims,
     shortest_campus_path,
     sort_items,
@@ -234,6 +235,66 @@ class TestGraphColoringBacktracking(unittest.TestCase):
                 {"match_id": 1, "student_id": 101, "admin_id": 1},
                 {"match_id": 1, "student_id": 102, "admin_id": 2},
             ])
+
+
+class TestUnit3Algorithms(unittest.TestCase):
+    def test_lcs_both_empty(self):
+        res = compute_lcs_similarity("", "")
+        self.assertEqual(res["result"]["lcs_length"], 0)
+        self.assertEqual(res["result"]["similarity_ratio"], 1.0)
+        self.assertEqual(res["telemetry"]["algorithm"], "Longest Common Subsequence")
+        self.assertEqual(res["telemetry"]["unit"], "Unit III")
+        self.assertEqual(res["telemetry"]["complexity"], "O(m * n)")
+        self.assertEqual(res["telemetry"]["input_size"], 0)
+
+    def test_lcs_one_empty(self):
+        res_a = compute_lcs_similarity("hello", "")
+        self.assertEqual(res_a["result"]["lcs_length"], 0)
+        self.assertEqual(res_a["result"]["similarity_ratio"], 0.0)
+        self.assertEqual(res_a["telemetry"]["input_size"], 5)
+
+        res_b = compute_lcs_similarity("", "world")
+        self.assertEqual(res_b["result"]["lcs_length"], 0)
+        self.assertEqual(res_b["result"]["similarity_ratio"], 0.0)
+        self.assertEqual(res_b["telemetry"]["input_size"], 5)
+
+    def test_lcs_identical_strings(self):
+        res = compute_lcs_similarity("calculator", "calculator")
+        self.assertEqual(res["result"]["lcs_length"], 10)
+        self.assertEqual(res["result"]["similarity_ratio"], 1.0)
+        self.assertEqual(res["telemetry"]["input_size"], 20)
+
+    def test_lcs_case_sensitivity(self):
+        res = compute_lcs_similarity("abc", "ABC")
+        self.assertEqual(res["result"]["lcs_length"], 0)
+        self.assertEqual(res["result"]["similarity_ratio"], 0.0)
+
+    def test_lcs_disjoint_strings(self):
+        res = compute_lcs_similarity("abc", "def")
+        self.assertEqual(res["result"]["lcs_length"], 0)
+        self.assertEqual(res["result"]["similarity_ratio"], 0.0)
+
+    def test_lcs_subsequence(self):
+        # LCS of "aggtab" and "gxtxayb" is "gtab" (length 4)
+        # Ratio = 2 * 4 / (6 + 7) = 8 / 13
+        res = compute_lcs_similarity("aggtab", "gxtxayb")
+        self.assertEqual(res["result"]["lcs_length"], 4)
+        self.assertAlmostEqual(res["result"]["similarity_ratio"], 8.0 / 13.0)
+        self.assertEqual(res["telemetry"]["input_size"], 13)
+
+    def test_lcs_seed_pair(self):
+        # "Dell XPS 15 Laptop" (len 18) vs "Dell Laptop" (len 11)
+        # LCS is "Dell Laptop" (len 11)
+        # Ratio = 2 * 11 / (18 + 11) = 22 / 29
+        res = compute_lcs_similarity("Dell XPS 15 Laptop", "Dell Laptop")
+        self.assertEqual(res["result"]["lcs_length"], 11)
+        self.assertEqual(res["result"]["similarity_ratio"], 22.0 / 29.0)
+
+    def test_lcs_invalid_types(self):
+        with self.assertRaises(TypeError):
+            compute_lcs_similarity(123, "text")
+        with self.assertRaises(TypeError):
+            compute_lcs_similarity("text", None)
 
 
 if __name__ == "__main__":

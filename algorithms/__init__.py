@@ -10,3 +10,7 @@ from .unit2_greedy_bt import (
     schedule_urgent_claims,
     assign_conflict_free_slots,
 )
+
+from .unit3_dp_bb import (
+    compute_lcs_similarity,
+)
