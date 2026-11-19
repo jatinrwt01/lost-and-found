@@ -8,6 +8,7 @@ from algorithms import (
     cluster_duplicate_items,
     compute_dropbox_mst,
     compute_lcs_similarity,
+    optimize_collection_tour,
     optimize_vault_packing,
     schedule_urgent_claims,
     shortest_campus_path,
@@ -597,6 +598,187 @@ class TestUnit3Algorithms(unittest.TestCase):
         self.assertEqual(tel["unit"], "Unit III")
         self.assertEqual(tel["complexity"], "O(n * W)")
         self.assertEqual(tel["input_size"], 1)
+        self.assertGreaterEqual(tel["time_ms"], 0.0)
+
+    def test_tsp_empty_active_locs(self):
+        dist_matrix = [[0.0, 5.0], [5.0, 0.0]]
+        res = optimize_collection_tour(dist_matrix, [])
+        self.assertEqual(res["result"]["tour"], [])
+        self.assertEqual(res["result"]["total_distance"], 0.0)
+        self.assertEqual(res["telemetry"]["algorithm"], "TSP (Branch and Bound)")
+        self.assertEqual(res["telemetry"]["unit"], "Unit III")
+        self.assertEqual(res["telemetry"]["complexity"], "O(n! * n^2) worst case")
+        self.assertEqual(res["telemetry"]["input_size"], 0)
+
+    def test_tsp_single_location(self):
+        dist_matrix = [[0.0, 5.0], [5.0, 0.0]]
+        res = optimize_collection_tour(dist_matrix, [1])
+        self.assertEqual(res["result"]["tour"], [1])
+        self.assertEqual(res["result"]["total_distance"], 0.0)
+        self.assertEqual(res["telemetry"]["input_size"], 1)
+
+    def test_tsp_two_locations_reachable(self):
+        dist_matrix = [[0.0, 5.0], [5.0, 0.0]]
+        res = optimize_collection_tour(dist_matrix, [1, 2])
+        self.assertEqual(res["result"]["tour"], [1, 2, 1])
+        self.assertEqual(res["result"]["total_distance"], 10.0)
+
+    def test_tsp_two_locations_unreachable(self):
+        dist_matrix = [[0.0, -1.0], [-1.0, 0.0]]
+        res = optimize_collection_tour(dist_matrix, [1, 2])
+        self.assertEqual(res["result"]["tour"], [])
+        self.assertEqual(res["result"]["total_distance"], -1.0)
+
+    def test_tsp_three_locations_prd_example(self):
+        dist_matrix = [
+            [0.0, 3.0, 5.0],
+            [3.0, 0.0, 4.0],
+            [5.0, 4.0, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3])
+        self.assertEqual(res["result"]["tour"], [1, 2, 3, 1])
+        self.assertEqual(res["result"]["total_distance"], 12.0)
+
+    def test_tsp_nearest_neighbor_suboptimal(self):
+        # 4 locations where greedy nearest neighbor chooses [1, 2, 3, 4, 1] (cost 104.0)
+        # while Branch and Bound finds the optimal tour [1, 3, 2, 4, 1] (cost 23.0)
+        dist_matrix = [
+            [0.0, 1.0, 10.0, 2.0],
+            [1.0, 0.0, 1.0, 10.0],
+            [10.0, 1.0, 0.0, 100.0],
+            [2.0, 10.0, 100.0, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3, 4])
+        self.assertEqual(res["result"]["tour"], [1, 3, 2, 4, 1])
+        self.assertEqual(res["result"]["total_distance"], 23.0)
+
+    def test_tsp_unreachable_edges(self):
+        # 4 locations with some unreachable edges (-1.0), but a reachable Hamiltonian cycle exists
+        dist_matrix = [
+            [0.0, 2.0, -1.0, 3.0],
+            [2.0, 0.0, 4.0, -1.0],
+            [-1.0, 4.0, 0.0, 1.0],
+            [3.0, -1.0, 1.0, 0.0],
+        ]
+        # Only feasible tour is 1 - 2 - 3 - 4 - 1 (cost 2 + 4 + 1 + 3 = 10.0)
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3, 4])
+        self.assertEqual(res["result"]["tour"], [1, 2, 3, 4, 1])
+        self.assertEqual(res["result"]["total_distance"], 10.0)
+
+    def test_tsp_no_complete_tour(self):
+        # Disconnected graph: node 3 has no reachable edges
+        dist_matrix = [
+            [0.0, 5.0, -1.0],
+            [5.0, 0.0, -1.0],
+            [-1.0, -1.0, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3])
+        self.assertEqual(res["result"]["tour"], [])
+        self.assertEqual(res["result"]["total_distance"], -1.0)
+
+    def test_tsp_equal_cost_tours_deterministic(self):
+        # 3 locations with equal edge costs (symmetric equilateral triangle)
+        # Tours [1, 2, 3, 1] and [1, 3, 2, 1] both have cost 9.0.
+        # Lexicographical tie-breaking deterministically selects [1, 2, 3, 1].
+        dist_matrix = [
+            [0.0, 3.0, 3.0],
+            [3.0, 0.0, 3.0],
+            [3.0, 3.0, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3])
+        self.assertEqual(res["result"]["tour"], [1, 2, 3, 1])
+        self.assertEqual(res["result"]["total_distance"], 9.0)
+
+    def test_tsp_symmetry_tolerance_and_normalization(self):
+        # Near-symmetric within 1e-6 tolerance: (0, 1)=4.0000001, (1, 0)=4.0000003
+        dist_matrix = [
+            [0.0, 4.0000001],
+            [4.0000003, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2])
+        self.assertEqual(res["result"]["tour"], [1, 2, 1])
+        # Averaged: 4.0000002 * 2 = 8.0000004 -> rounded to 6 decimals: 8.0
+        self.assertAlmostEqual(res["result"]["total_distance"], 8.000000, places=5)
+
+        # Asymmetric beyond 1e-6 tolerance must raise ValueError
+        asym_matrix = [
+            [0.0, 4.0],
+            [4.5, 0.0],
+        ]
+        with self.assertRaises(ValueError):
+            optimize_collection_tour(asym_matrix, [1, 2])
+
+        # One direction unreachable must raise ValueError
+        one_unreach = [
+            [0.0, -1.0],
+            [5.0, 0.0],
+        ]
+        with self.assertRaises(ValueError):
+            optimize_collection_tour(one_unreach, [1, 2])
+
+    def test_tsp_invalid_matrix_dimensions(self):
+        with self.assertRaises(ValueError):
+            optimize_collection_tour("not_a_list", [1])
+        with self.assertRaises(ValueError):
+            optimize_collection_tour([[0.0, 1.0]], [1])  # 1x2 non-square
+        with self.assertRaises(ValueError):
+            optimize_collection_tour([[0.0, 1.0], [1.0]], [1])  # ragged row
+        with self.assertRaises(ValueError):
+            optimize_collection_tour([], [1])  # empty matrix with active locations
+
+    def test_tsp_invalid_distances(self):
+        # Negative distance not -1.0
+        with self.assertRaises(ValueError):
+            optimize_collection_tour([[0.0, -2.0], [-2.0, 0.0]], [1, 2])
+        # Boolean in matrix
+        with self.assertRaises(ValueError):
+            optimize_collection_tour([[0.0, True], [True, 0.0]], [1, 2])
+        # Non-zero diagonal
+        with self.assertRaises(ValueError):
+            optimize_collection_tour([[1.0, 2.0], [2.0, 0.0]], [1, 2])
+        # Non-numeric string
+        with self.assertRaises(ValueError):
+            optimize_collection_tour([[0.0, "two"], ["two", 0.0]], [1, 2])
+        # NaN / inf
+        with self.assertRaises(ValueError):
+            optimize_collection_tour([[0.0, float("nan")], [float("nan"), 0.0]], [1, 2])
+        with self.assertRaises(ValueError):
+            optimize_collection_tour([[0.0, float("inf")], [float("inf"), 0.0]], [1, 2])
+
+    def test_tsp_invalid_active_locs(self):
+        dist_matrix = [[0.0, 2.0], [2.0, 0.0]]
+        with self.assertRaises(ValueError):
+            optimize_collection_tour(dist_matrix, "not_a_list")
+        with self.assertRaises(ValueError):
+            optimize_collection_tour(dist_matrix, [0, 1])  # 0 is out of 1-based range
+        with self.assertRaises(ValueError):
+            optimize_collection_tour(dist_matrix, [1, 3])  # 3 > 2 (out of range)
+        with self.assertRaises(ValueError):
+            optimize_collection_tour(dist_matrix, [1, 1])  # duplicate location ID
+        with self.assertRaises(ValueError):
+            optimize_collection_tour(dist_matrix, [True, 2])  # boolean location ID
+
+    def test_tsp_input_immutability(self):
+        dist_matrix = [
+            [0.0, 4.0000001],
+            [4.0000003, 0.0],
+        ]
+        active_locs = [1, 2]
+        matrix_copy = [list(r) for r in dist_matrix]
+        locs_copy = list(active_locs)
+
+        optimize_collection_tour(dist_matrix, active_locs)
+        self.assertEqual(dist_matrix, matrix_copy)
+        self.assertEqual(active_locs, locs_copy)
+
+    def test_tsp_telemetry(self):
+        dist_matrix = [[0.0, 3.0], [3.0, 0.0]]
+        res = optimize_collection_tour(dist_matrix, [1, 2])
+        tel = res["telemetry"]
+        self.assertEqual(tel["algorithm"], "TSP (Branch and Bound)")
+        self.assertEqual(tel["unit"], "Unit III")
+        self.assertEqual(tel["complexity"], "O(n! * n^2) worst case")
+        self.assertEqual(tel["input_size"], 2)
         self.assertGreaterEqual(tel["time_ms"], 0.0)
 
 
