@@ -96,6 +96,47 @@ class TestUnit2Algorithms(unittest.TestCase):
         with self.assertRaises(ValueError):
             shortest_campus_path([{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": float("nan")}], 1, 2)
 
+    def test_dijkstra_boolean_and_endpoint_validation(self):
+        # Boolean weights must be rejected
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": True}], 1, 2)
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": False}], 1, 2)
+        # Non-numeric weights must be rejected
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": "invalid"}], 1, 2)
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": None}], 1, 2)
+
+        # Boolean endpoints in edges must be rejected
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": True, "dst_loc_id": 2, "distance_meters": 10.0}], 1, 2)
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": 1, "dst_loc_id": False, "distance_meters": 10.0}], 1, 2)
+
+        # Non-integer endpoints in edges must be rejected
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": "1", "dst_loc_id": 2, "distance_meters": 10.0}], 1, 2)
+        with self.assertRaises(ValueError):
+            shortest_campus_path([{"src_loc_id": 1, "dst_loc_id": 2.5, "distance_meters": 10.0}], 1, 2)
+
+        # Boolean start_loc and end_loc must be rejected
+        edges = [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 10.0}]
+        with self.assertRaises(ValueError):
+            shortest_campus_path(edges, True, 2)
+        with self.assertRaises(ValueError):
+            shortest_campus_path(edges, 1, False)
+        with self.assertRaises(ValueError):
+            shortest_campus_path(edges, True, True)
+
+        # Non-integer start_loc and end_loc must be rejected
+        with self.assertRaises(ValueError):
+            shortest_campus_path(edges, "1", 2)
+        with self.assertRaises(ValueError):
+            shortest_campus_path(edges, 1, 2.0)
+        with self.assertRaises(ValueError):
+            shortest_campus_path(edges, None, 2)
+
     def test_kruskal_mst(self):
         edges = [
             {"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 10.0},
@@ -115,6 +156,26 @@ class TestUnit2Algorithms(unittest.TestCase):
             compute_dropbox_mst(3, [{"src_loc_id": True, "dst_loc_id": 2, "distance_meters": 10.0}])
         with self.assertRaises(ValueError):
             compute_dropbox_mst(3, [{"src_loc_id": 1, "dst_loc_id": 4, "distance_meters": 10.0}])
+
+    def test_kruskal_boolean_weight(self):
+        with self.assertRaises(ValueError):
+            compute_dropbox_mst(3, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": True}])
+        with self.assertRaises(ValueError):
+            compute_dropbox_mst(3, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": False}])
+        with self.assertRaises(ValueError):
+            compute_dropbox_mst(3, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": "invalid"}])
+        with self.assertRaises(ValueError):
+            compute_dropbox_mst(3, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": None}])
+
+    def test_kruskal_zero_nodes_with_edges(self):
+        # num_nodes == 0 with empty edges returns empty MST
+        res = compute_dropbox_mst(0, [])
+        self.assertEqual(res["result"]["mst_edges"], [])
+        self.assertEqual(res["result"]["total_cable_or_walk_meters"], 0.0)
+
+        # num_nodes == 0 with non-empty edges must be rejected
+        with self.assertRaises(ValueError):
+            compute_dropbox_mst(0, [{"src_loc_id": 1, "dst_loc_id": 2, "distance_meters": 10.0}])
 
     def test_job_sequencing(self):
         claims = [

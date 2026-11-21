@@ -41,14 +41,33 @@ class _DisjointSetUnion:
     input_size_fn=lambda *args, **kwargs: len(args[0]) if args else len(kwargs.get("edges", [])),
 )
 def shortest_campus_path(edges: List[Dict[str, Any]], start_loc: int, end_loc: int) -> Dict[str, Any]:
+    if not isinstance(start_loc, int) or isinstance(start_loc, bool):
+        raise ValueError(f"start_loc must be an integer, got: {start_loc!r}")
+    if not isinstance(end_loc, int) or isinstance(end_loc, bool):
+        raise ValueError(f"end_loc must be an integer, got: {end_loc!r}")
+
     adj: Dict[int, List[tuple[int, float]]] = {}
     for edge in edges:
-        dist = float(edge["distance_meters"])
+        dist_val = edge["distance_meters"]
+        if isinstance(dist_val, bool):
+            raise ValueError(f"Invalid edge weight ({dist_val!r}). Distances must be non-negative finite numbers.")
+        try:
+            dist = float(dist_val)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid edge weight ({dist_val!r}). Distances must be non-negative finite numbers.") from exc
         if not math.isfinite(dist) or dist < 0:
             raise ValueError(f"Invalid edge weight ({dist}). Distances must be non-negative finite numbers.")
 
         u = edge["src_loc_id"]
         v = edge["dst_loc_id"]
+        if (
+            not isinstance(u, int)
+            or isinstance(u, bool)
+            or not isinstance(v, int)
+            or isinstance(v, bool)
+        ):
+            raise ValueError(f"Edge endpoints must be integers, got: src={u!r}, dst={v!r}")
+
         adj.setdefault(u, []).append((v, dist))
         adj.setdefault(v, []).append((u, dist))
 
@@ -107,11 +126,14 @@ def compute_dropbox_mst(num_nodes: int, edges: List[Dict[str, Any]]) -> Dict[str
     if not isinstance(num_nodes, int) or isinstance(num_nodes, bool) or num_nodes < 0:
         raise ValueError(f"num_nodes must be a non-negative integer, got: {num_nodes}")
 
-    if num_nodes == 0:
-        return {"mst_edges": [], "total_cable_or_walk_meters": 0.0}
-
     for edge in edges:
-        dist = float(edge["distance_meters"])
+        dist_val = edge["distance_meters"]
+        if isinstance(dist_val, bool):
+            raise ValueError(f"Invalid edge weight ({dist_val!r}). Distances must be non-negative finite numbers.")
+        try:
+            dist = float(dist_val)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid edge weight ({dist_val!r}). Distances must be non-negative finite numbers.") from exc
         if not math.isfinite(dist) or dist < 0:
             raise ValueError(f"Invalid edge weight ({dist}). Distances must be non-negative finite numbers.")
 
@@ -127,7 +149,7 @@ def compute_dropbox_mst(num_nodes: int, edges: List[Dict[str, Any]]) -> Dict[str
         if u < 1 or u > num_nodes or v < 1 or v > num_nodes:
             raise ValueError(f"Edge endpoint out of range [1, {num_nodes}]: src={u}, dst={v}")
 
-    if not edges:
+    if num_nodes == 0 or not edges:
         return {"mst_edges": [], "total_cable_or_walk_meters": 0.0}
 
     sorted_edges = sorted(edges, key=lambda e: float(e["distance_meters"]))
