@@ -366,11 +366,15 @@ def optimize_collection_tour(
                 elif abs(total_dist - best_cost) <= 1e-9:
                     if not best_tour or complete_tour < best_tour:
                         best_tour = complete_tour
+                        best_cost = total_dist
             return
 
         lb_rem = _calc_lower_bound(curr_loc, unvisited_nodes)
-        if lb_rem == float("inf") or current_cost + lb_rem >= best_cost - 1e-9:
+        if lb_rem == float("inf") or current_cost + lb_rem > best_cost + 1e-9:
             return
+        if current_cost + lb_rem >= best_cost - 1e-9 and best_tour:
+            if current_path > best_tour[:len(current_path)]:
+                return
 
         candidates = []
         for cand in unvisited_nodes:
@@ -384,14 +388,20 @@ def optimize_collection_tour(
             else:
                 cand_lb = current_cost + edge_d + _calc_lower_bound(cand, cand_unvisited)
 
-            if cand_lb < best_cost - 1e-9:
+            if cand_lb <= best_cost + 1e-9:
+                if cand_lb >= best_cost - 1e-9 and best_tour:
+                    if (current_path + [cand]) > best_tour[:len(current_path) + 1]:
+                        continue
                 candidates.append((cand_lb, cand, edge_d))
 
         candidates.sort(key=lambda item: (item[0], item[1]))
 
         for cand_lb, cand, edge_d in candidates:
-            if cand_lb >= best_cost - 1e-9:
+            if cand_lb > best_cost + 1e-9:
                 continue
+            if cand_lb >= best_cost - 1e-9 and best_tour:
+                if (current_path + [cand]) > best_tour[:len(current_path) + 1]:
+                    continue
             _search(cand, unvisited_nodes - {cand}, current_cost + edge_d, current_path + [cand])
 
     initial_unvisited = set(active_locs) - {start}

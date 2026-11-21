@@ -689,6 +689,102 @@ class TestUnit3Algorithms(unittest.TestCase):
         self.assertEqual(res["result"]["tour"], [1, 2, 3, 1])
         self.assertEqual(res["result"]["total_distance"], 9.0)
 
+    def test_tsp_equal_cost_lexicographical_over_nearest_neighbor(self):
+        # 4 locations where initial nearest-neighbor greedily selects:
+        # 1 -> 3 (cost 1.0) -> 4 (cost 5.0) -> 2 (cost 1.0) -> 1 (cost 5.0) = [1, 3, 4, 2, 1] (cost 12.0)
+        # However, the equal-cost tour 1 -> 2 -> 4 -> 3 -> 1 also has cost 12.0
+        # (5.0 + 1.0 + 5.0 + 1.0 = 12.0), and is lexicographically smaller:
+        # [1, 2, 4, 3, 1] < [1, 3, 4, 2, 1].
+        # Branch-and-bound must explore equal-cost branches to select [1, 2, 4, 3, 1].
+        dist_matrix = [
+            [0.0, 5.0, 1.0, 10.0],
+            [5.0, 0.0, 10.0, 1.0],
+            [1.0, 10.0, 0.0, 5.0],
+            [10.0, 1.0, 5.0, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3, 4])
+        self.assertEqual(res["result"]["tour"], [1, 2, 4, 3, 1])
+        self.assertEqual(res["result"]["total_distance"], 12.0)
+
+    def test_tsp_multiple_equal_cost_tours_lexicographical(self):
+        # 5 locations in a symmetric ring where forward cycle [1, 2, 3, 4, 5, 1]
+        # and reverse cycle [1, 5, 4, 3, 2, 1] both have cost 10.0.
+        # Lexicographically smaller tour [1, 2, 3, 4, 5, 1] must be selected.
+        dist_matrix = [
+            [0.0, 2.0, 10.0, 10.0, 2.0],
+            [2.0, 0.0, 2.0, 10.0, 10.0],
+            [10.0, 2.0, 0.0, 2.0, 10.0],
+            [10.0, 10.0, 2.0, 0.0, 2.0],
+            [2.0, 10.0, 10.0, 2.0, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3, 4, 5])
+        self.assertEqual(res["result"]["tour"], [1, 2, 3, 4, 5, 1])
+        self.assertEqual(res["result"]["total_distance"], 10.0)
+
+    def test_tsp_equal_cost_with_unreachable_edges(self):
+        # 5 locations with some unreachable edges (-1.0).
+        # Two feasible equal-cost tours:
+        # [1, 2, 4, 3, 5, 1] (cost 3 + 4 + 2 + 5 + 3 = 17.0)
+        # [1, 5, 3, 4, 2, 1] (cost 3 + 5 + 2 + 4 + 3 = 17.0)
+        # The lexicographically smaller tour [1, 2, 4, 3, 5, 1] must be selected.
+        dist_matrix = [
+            [0.0, 3.0, -1.0, -1.0, 3.0],
+            [3.0, 0.0, -1.0, 4.0, -1.0],
+            [-1.0, -1.0, 0.0, 2.0, 5.0],
+            [-1.0, 4.0, 2.0, 0.0, -1.0],
+            [3.0, -1.0, 5.0, -1.0, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3, 4, 5])
+        self.assertEqual(res["result"]["tour"], [1, 2, 4, 3, 5, 1])
+        self.assertEqual(res["result"]["total_distance"], 17.0)
+
+    def test_tsp_floating_point_cost_tie_break(self):
+        # 4 locations with fractional edge costs where tours have identical float sums.
+        # [1, 2, 4, 3, 1] and [1, 3, 4, 2, 1] both have cost 12.0.
+        dist_matrix = [
+            [0.0, 4.75, 1.25, 10.0],
+            [4.75, 0.0, 10.0, 1.25],
+            [1.25, 10.0, 0.0, 4.75],
+            [10.0, 1.25, 4.75, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3, 4])
+        self.assertEqual(res["result"]["tour"], [1, 2, 4, 3, 1])
+        self.assertEqual(res["result"]["total_distance"], 12.0)
+
+    def test_tsp_non_binary_exact_decimal_tie_break(self):
+        # 4 locations with non-binary-exact floats (0.1, 0.2, 0.3).
+        # Forward tour 1 -> 2 (0.3) -> 4 (0.1) -> 3 (0.2) -> 1 (0.1)
+        # Reverse tour 1 -> 3 (0.1) -> 4 (0.2) -> 2 (0.1) -> 1 (0.3)
+        # Due to float representation, 0.3 + 0.1 + 0.2 + 0.1 = 0.7000000000000001
+        # while 0.1 + 0.2 + 0.1 + 0.3 = 0.7, differing by ~1.1e-16 (within 1e-9 tolerance).
+        # Initial nearest-neighbor selects [1, 3, 4, 2, 1].
+        # Lexicographically smaller tour [1, 2, 4, 3, 1] must be selected.
+        # Returned total_distance must correspond exactly to the selected tour.
+        dist_matrix = [
+            [0.0, 0.3, 0.1, 1.0],
+            [0.3, 0.0, 1.0, 0.1],
+            [0.1, 1.0, 0.0, 0.2],
+            [1.0, 0.1, 0.2, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3, 4])
+        tour = res["result"]["tour"]
+        self.assertEqual(tour, [1, 2, 4, 3, 1])
+        actual_dist = sum(dist_matrix[u - 1][v - 1] for u, v in zip(tour[:-1], tour[1:]))
+        self.assertEqual(res["result"]["total_distance"], actual_dist)
+
+    def test_tsp_returned_distance_synchronized_with_tour(self):
+        # Regression test verifying returned total_distance equals actual tour distance
+        dist_matrix = [
+            [0.0, 5.0, 1.0, 10.0],
+            [5.0, 0.0, 10.0, 1.0],
+            [1.0, 10.0, 0.0, 5.0],
+            [10.0, 1.0, 5.0, 0.0],
+        ]
+        res = optimize_collection_tour(dist_matrix, [1, 2, 3, 4])
+        tour = res["result"]["tour"]
+        actual_dist = sum(dist_matrix[u - 1][v - 1] for u, v in zip(tour[:-1], tour[1:]))
+        self.assertEqual(res["result"]["total_distance"], actual_dist)
+
     def test_tsp_symmetry_tolerance_and_normalization(self):
         # Near-symmetric within 1e-6 tolerance: (0, 1)=4.0000001, (1, 0)=4.0000003
         dist_matrix = [
