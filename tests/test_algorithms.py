@@ -1328,6 +1328,21 @@ class TestUnit4Algorithms(unittest.TestCase):
         self.assertEqual(res["result"]["pairs"], expected)
         self.assertEqual(res["result"]["max_matches"], 2)
 
+    def test_bipartite_cardinality_priority_over_score(self):
+        lost = [{"lost_id": 1}, {"lost_id": 2}]
+        found = [{"found_id": 101}, {"found_id": 102}]
+        score_matrix = {
+            1: {101: 0.99, 102: 0.01},
+            2: {101: 0.01},
+        }
+        res = global_bipartite_match(lost, found, score_matrix)
+        expected = [
+            {"lost_id": 1, "found_id": 102, "score": 0.01},
+            {"lost_id": 2, "found_id": 101, "score": 0.01},
+        ]
+        self.assertEqual(res["result"]["pairs"], expected)
+        self.assertEqual(res["result"]["max_matches"], 2)
+
     def test_bipartite_residual_reassignment(self):
         lost = [{"item_id": 1}, {"item_id": 2}, {"item_id": 3}]
         found = [{"item_id": 101}, {"item_id": 102}, {"item_id": 103}]
@@ -1504,7 +1519,7 @@ class TestUnit4Algorithms(unittest.TestCase):
 
     def test_bitonic_empty_input(self):
         res = bitonic_sort_scores([])
-        self.assertEqual(res["result"], {"sorted_candidates": []})
+        self.assertEqual(res["result"], {"sorted_candidates": [], "padding": []})
         self.assertEqual(res["telemetry"]["algorithm"], "Bitonic Sort")
         self.assertEqual(res["telemetry"]["unit"], "Unit IV")
         self.assertEqual(res["telemetry"]["complexity"], "O(n log^2 n)")
@@ -1514,6 +1529,7 @@ class TestUnit4Algorithms(unittest.TestCase):
         candidates = [{"id": 1, "score": 0.75}]
         res = bitonic_sort_scores(candidates)
         self.assertEqual(res["result"]["sorted_candidates"], [{"id": 1, "score": 0.75}])
+        self.assertEqual(res["result"]["padding"], [])
         self.assertEqual(len(res["result"]["sorted_candidates"]), 1)
 
     def test_bitonic_power_of_two_sorted(self):
@@ -1527,6 +1543,7 @@ class TestUnit4Algorithms(unittest.TestCase):
         sorted_res = res["result"]["sorted_candidates"]
         self.assertEqual(len(sorted_res), 4)
         self.assertEqual([c["id"] for c in sorted_res], [1, 2, 3, 4])
+        self.assertEqual(res["result"]["padding"], [])
         self.assertFalse(any(c.get("pad") for c in sorted_res))
 
     def test_bitonic_power_of_two_reverse(self):
@@ -1540,6 +1557,7 @@ class TestUnit4Algorithms(unittest.TestCase):
         sorted_res = res["result"]["sorted_candidates"]
         self.assertEqual(len(sorted_res), 4)
         self.assertEqual([c["id"] for c in sorted_res], [1, 2, 3, 4])
+        self.assertEqual(res["result"]["padding"], [])
 
     def test_bitonic_non_power_of_two_padding_length3(self):
         candidates = [
@@ -1549,13 +1567,14 @@ class TestUnit4Algorithms(unittest.TestCase):
         ]
         res = bitonic_sort_scores(candidates)
         sorted_res = res["result"]["sorted_candidates"]
-        self.assertEqual(len(sorted_res), 4)
+        padding_res = res["result"]["padding"]
+        self.assertEqual(len(sorted_res), 3)
         # Real candidates first, descending
         self.assertEqual(sorted_res[0]["id"], "B")
         self.assertEqual(sorted_res[1]["id"], "A")
         self.assertEqual(sorted_res[2]["id"], "C")
-        # Dummy at index 3
-        self.assertEqual(sorted_res[3], {"pad": True, "score": None})
+        # Dummy padding records separated
+        self.assertEqual(padding_res, [{"pad": True, "score": None}])
 
     def test_bitonic_non_power_of_two_padding_length5(self):
         candidates = [
@@ -1567,10 +1586,12 @@ class TestUnit4Algorithms(unittest.TestCase):
         ]
         res = bitonic_sort_scores(candidates)
         sorted_res = res["result"]["sorted_candidates"]
-        self.assertEqual(len(sorted_res), 8)
-        real_ids = [c["id"] for c in sorted_res[:5]]
+        padding_res = res["result"]["padding"]
+        self.assertEqual(len(sorted_res), 5)
+        real_ids = [c["id"] for c in sorted_res]
         self.assertEqual(real_ids, [2, 4, 3, 5, 1])
-        for dummy in sorted_res[5:]:
+        self.assertEqual(len(padding_res), 3)
+        for dummy in padding_res:
             self.assertEqual(dummy, {"pad": True, "score": None})
 
     def test_bitonic_deterministic_ties_stability(self):
@@ -1581,9 +1602,10 @@ class TestUnit4Algorithms(unittest.TestCase):
         ]
         res = bitonic_sort_scores(candidates)
         sorted_res = res["result"]["sorted_candidates"]
-        self.assertEqual(len(sorted_res), 4)
-        self.assertEqual([c["id"] for c in sorted_res[:3]], ["first", "second", "third"])
-        self.assertEqual(sorted_res[3], {"pad": True, "score": None})
+        padding_res = res["result"]["padding"]
+        self.assertEqual(len(sorted_res), 3)
+        self.assertEqual([c["id"] for c in sorted_res], ["first", "second", "third"])
+        self.assertEqual(padding_res, [{"pad": True, "score": None}])
 
     def test_bitonic_numerical_robustness(self):
         candidates = [
@@ -1595,6 +1617,7 @@ class TestUnit4Algorithms(unittest.TestCase):
         res = bitonic_sort_scores(candidates)
         sorted_res = res["result"]["sorted_candidates"]
         self.assertEqual([c["id"] for c in sorted_res], ["huge", "tiny", "zero", "neg"])
+        self.assertEqual(res["result"]["padding"], [])
 
     def test_bitonic_integer_scores(self):
         candidates = [
@@ -1604,8 +1627,10 @@ class TestUnit4Algorithms(unittest.TestCase):
         ]
         res = bitonic_sort_scores(candidates)
         sorted_res = res["result"]["sorted_candidates"]
-        self.assertEqual([c["id"] for c in sorted_res[:3]], [2, 3, 1])
-        self.assertEqual(sorted_res[3], {"pad": True, "score": None})
+        padding_res = res["result"]["padding"]
+        self.assertEqual(len(sorted_res), 3)
+        self.assertEqual([c["id"] for c in sorted_res], [2, 3, 1])
+        self.assertEqual(padding_res, [{"pad": True, "score": None}])
 
     def test_bitonic_large_integer_precision(self):
         val_low = 2**53
@@ -1619,6 +1644,7 @@ class TestUnit4Algorithms(unittest.TestCase):
         self.assertEqual([c["id"] for c in sorted_res], ["high", "low"])
         self.assertEqual(sorted_res[0]["score"], val_high)
         self.assertEqual(sorted_res[1]["score"], val_low)
+        self.assertEqual(res["result"]["padding"], [])
 
     def test_bitonic_arbitrary_precision_no_overflow(self):
         huge_1 = 10**400
@@ -1631,9 +1657,10 @@ class TestUnit4Algorithms(unittest.TestCase):
         ]
         res = bitonic_sort_scores(candidates)
         sorted_res = res["result"]["sorted_candidates"]
-        self.assertEqual(len(sorted_res), 4)
-        self.assertEqual([c["id"] for c in sorted_res[:3]], ["huge_2", "huge_1", "smaller"])
-        self.assertEqual(sorted_res[3], {"pad": True, "score": None})
+        padding_res = res["result"]["padding"]
+        self.assertEqual(len(sorted_res), 3)
+        self.assertEqual([c["id"] for c in sorted_res], ["huge_2", "huge_1", "smaller"])
+        self.assertEqual(padding_res, [{"pad": True, "score": None}])
 
     def test_bitonic_input_immutability(self):
         candidates = [
@@ -1652,12 +1679,14 @@ class TestUnit4Algorithms(unittest.TestCase):
         candidates = [{"id": i, "score": s} for i, s in enumerate(scores)]
         res = bitonic_sort_scores(candidates)
         sorted_res = res["result"]["sorted_candidates"]
-        self.assertEqual(len(sorted_res), 16)
+        padding_res = res["result"]["padding"]
+        self.assertEqual(len(sorted_res), 10)
         # 10 real candidates
-        real_scores = [c["score"] for c in sorted_res[:10]]
+        real_scores = [c["score"] for c in sorted_res]
         self.assertEqual(real_scores, sorted(scores, reverse=True))
         # 6 dummy candidates
-        for dummy in sorted_res[10:]:
+        self.assertEqual(len(padding_res), 6)
+        for dummy in padding_res:
             self.assertEqual(dummy, {"pad": True, "score": None})
 
     def test_bitonic_invalid_candidate_list(self):
@@ -1703,6 +1732,8 @@ class TestUnit4Algorithms(unittest.TestCase):
         res = bitonic_sort_scores(candidates)
         self.assertIn("result", res)
         self.assertIn("telemetry", res)
+        self.assertIn("sorted_candidates", res["result"])
+        self.assertIn("padding", res["result"])
         tel = res["telemetry"]
         self.assertEqual(tel["algorithm"], "Bitonic Sort")
         self.assertEqual(tel["unit"], "Unit IV")

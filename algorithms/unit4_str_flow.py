@@ -1,5 +1,5 @@
 import math
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from algorithms.metrics import measure_daa
 
 SEARCHABLE_FIELDS = ("title", "category", "description", "serial_tag")
@@ -472,7 +472,7 @@ def global_bipartite_match(
             if not updated:
                 break
 
-        if dist[T] == float("inf") or dist[T] >= 0.0:
+        if dist[T] == float("inf"):
             break
 
         curr = T
@@ -560,7 +560,7 @@ def bitonic_sort_scores(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     n = len(candidates)
     if n == 0:
-        return {"sorted_candidates": []}
+        return {"sorted_candidates": [], "padding": []}
 
     items: List[_BitonicItem] = []
     for idx, cand in enumerate(candidates):
@@ -587,5 +587,11 @@ def bitonic_sort_scores(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     _bitonic_sort(items, 0, p, False)
 
-    return {"sorted_candidates": [item.payload for item in items]}
+    real_candidates = [item.payload for item in items if item.is_real]
+    padding_records = [item.payload for item in items if not item.is_real]
+
+    return {
+        "sorted_candidates": real_candidates,
+        "padding": padding_records,
+    }
 
