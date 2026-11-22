@@ -11,6 +11,7 @@
         </div>
 
         <form action="{{ url_for('auth.login', next=request.args.get('next')) }}" method="POST" class="auth-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <label for="identifier">Roll Number or Campus Email</label>
                 <input type="text" id="identifier" name="identifier" class="form-control" placeholder="e.g. 2024CS01 or admin@campus.edu" required autofocus>
@@ -27,10 +28,10 @@
         <div class="demo-credentials-box">
             <h4>💡 Demo Quick Credentials (MOCK MODE):</h4>
             <div class="cred-row">
-                <strong>Admin:</strong> <code>ADMIN001</code> / <code>admin123</code>
+                <strong>Admin:</strong> <code>ADM001</code> / <code>Admin@123</code>
             </div>
             <div class="cred-row">
-                <strong>Student:</strong> <code>2024CS01</code> / <code>password123</code>
+                <strong>Student:</strong> <code>2023CS01</code> / <code>Student@123</code>
             </div>
         </div>
 

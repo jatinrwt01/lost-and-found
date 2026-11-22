@@ -1,14 +1,26 @@
+# SQLite database files
 *.db
 *.db-wal
 *.db-shm
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.tmp
+extracted_prd.txt
+
+# Virtual environments
 .venv/
 venv/
 ENV/
 .env
+
+# IDE and OS
+.vscode/
+.idea/
 .DS_Store
-*.tmp
-extracted_prd.txt
+
+# Large documents & zone identifiers
+*.docx
 *.docx:Zone.Identifier

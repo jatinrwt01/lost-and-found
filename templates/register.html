@@ -11,13 +11,14 @@
         </div>
 
         <form action="{{ url_for('auth.register') }}" method="POST" class="auth-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <label for="name">Full Name</label>
                 <input type="text" id="name" name="name" class="form-control" placeholder="e.g. Anshu Kala" required autofocus>
             </div>
 
             <div class="form-group">
-                <label for="roll_no">Roll Number / Staff ID</label>
+                <label for="roll_no">Roll Number / Student ID</label>
                 <input type="text" id="roll_no" name="roll_no" class="form-control" placeholder="e.g. 2024CS01" required>
             </div>
 
@@ -28,15 +29,7 @@
 
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" class="form-control" placeholder="Create a secure password" required minlength="4">
-            </div>
-
-            <div class="form-group">
-                <label for="role">Role</label>
-                <select id="role" name="role" class="form-control">
-                    <option value="student" selected>Student</option>
-                    <option value="admin">Administrator / Campus Security</option>
-                </select>
+                <input type="password" id="password" name="password" class="form-control" placeholder="Create a secure password (min 8 characters)" required minlength="8">
             </div>
 
             <button type="submit" class="btn btn-primary btn-block">Complete Registration</button>

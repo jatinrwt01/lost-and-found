@@ -182,7 +182,7 @@ function applyClientSideCategoryFilter(filter) {
 /**
  * Match Candidates Modal Controls
  */
-function openMatchModal(itemId, itemType, itemTitle) {
+async function openMatchModal(itemId, itemType, itemTitle) {
     const modal = document.getElementById('matchModal');
     const title = document.getElementById('modalTitle');
     const body = document.getElementById('modalBody');
@@ -190,22 +190,53 @@ function openMatchModal(itemId, itemType, itemTitle) {
     if (!modal) return;
     title.innerText = `LCS & Distance Pairing for: "${itemTitle}" (#${itemId})`;
     body.innerHTML = `
-        <div style="padding: 1rem 0;">
-            <p><strong>Querying DAA Engine:</strong> Finding optimal ${itemType === 'LOST' ? 'FOUND' : 'LOST'} counter-matches.</p>
-            <div style="margin-top: 1rem; background: #f8fafc; padding: 1rem; border-radius: 6px; border: 1px solid #e2e8f0;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span><strong>Candidate Pairing #102</strong></span>
-                    <span class="confidence-badge">92% Match</span>
-                </div>
-                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;">Calculated via Longest Common Subsequence ($O(m \\cdot n)$) and Floyd-Warshall Campus Matrix ($O(V^3)$).</p>
-                <div style="font-size: 0.8rem; display: flex; gap: 1rem;">
-                    <span>Normalized LCS Score: <code>0.88</code></span>
-                    <span>Spatial Distance: <code>140 meters</code></span>
-                </div>
-            </div>
+        <div style="padding: 1.5rem; text-align: center;">
+            <p><strong>Querying DAA Engine:</strong> Running Longest Common Subsequence ($O(m \\cdot n)$) and Floyd-Warshall ($O(V^3)$)...</p>
         </div>
     `;
     modal.style.display = 'flex';
+
+    try {
+        const res = await apiFetch(`/api/items/${itemId}/candidates`);
+        if (res.status === 'ok') {
+            const candidates = res.data.candidates || [];
+            if (candidates.length === 0) {
+                body.innerHTML = `
+                    <div style="padding: 1.5rem; text-align: center; color: #64748b;">
+                        <p>No active counter-matches found in the same category.</p>
+                        <small>Opposite report category: ${itemType === 'LOST' ? 'FOUND' : 'LOST'}</small>
+                    </div>
+                `;
+            } else {
+                body.innerHTML = `
+                    <div style="padding: 1rem 0; display: flex; flex-direction: column; gap: 0.75rem;">
+                        <p style="font-size: 0.9rem; color: #475569;">
+                            Found <strong>${candidates.length}</strong> potential counter-match${candidates.length === 1 ? '' : 'es'} ranked by composite confidence ($0.65 \\times \\text{LCS} + 0.35 \\times \\text{Proximity}$):
+                        </p>
+                        ${candidates.map(c => `
+                            <div style="background: #f8fafc; padding: 1rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem;">
+                                    <span><strong>#${c.item.item_id} — ${escapeHtml(c.item.title)}</strong></span>
+                                    <span class="confidence-badge">${Math.round(c.confidence_score * 100)}% Match</span>
+                                </div>
+                                <p style="font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;">${escapeHtml(c.item.description)}</p>
+                                <div style="font-size: 0.8rem; display: flex; gap: 1rem; color: #64748b;">
+                                    <span>📍 Location: <strong>${escapeHtml(c.item.location_name || 'Campus')}</strong></span>
+                                    <span>LCS Ratio: <code>${c.lcs_score}</code></span>
+                                    <span>Distance: <code>${c.spatial_distance_meters}m</code></span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        } else {
+            body.innerHTML = `<div style="padding: 1rem; color: #dc2626;">Failed to load candidate pairings: ${res.message || 'Error'}</div>`;
+        }
+    } catch (err) {
+        console.error("Match candidates error:", err);
+        body.innerHTML = `<div style="padding: 1rem; color: #dc2626;">Failed to communicate with DAA matching service.</div>`;
+    }
 }
 
 function closeMatchModal() {

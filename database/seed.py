@@ -69,13 +69,15 @@ def seed_data(db_path: Optional[Union[Path, str]] = None) -> None:
                 for row in conn.execute("SELECT roll_no, user_id FROM users;").fetchall()
             }
 
+            # Canonical 7 locations matching PRD.md Section 4.2 and Canvas Map (800x500)
             locations_data = [
-                ("Main Gate", 100, 500),
-                ("Central Library", 300, 300),
-                ("Computer Science Block", 500, 200),
-                ("Cafeteria", 400, 450),
-                ("Sports Complex", 200, 150),
-                ("Auditorium", 600, 400),
+                ("Main Gate", 100, 400),
+                ("Central Library", 250, 220),
+                ("Academic Block A", 420, 180),
+                ("Canteen", 380, 360),
+                ("Hostel Complex", 650, 380),
+                ("Sports Ground", 700, 150),
+                ("Admin Vault", 500, 260),
             ]
 
             for name, x, y in locations_data:
@@ -93,14 +95,18 @@ def seed_data(db_path: Optional[Union[Path, str]] = None) -> None:
                 for row in conn.execute("SELECT name, loc_id FROM locations;").fetchall()
             }
 
+            # Canonical 10 campus edges matching PRD.md and Canvas Map
             edges_data = [
-                ("Main Gate", "Central Library", 280.0),
-                ("Main Gate", "Cafeteria", 305.0),
-                ("Central Library", "Computer Science Block", 225.0),
-                ("Central Library", "Sports Complex", 180.0),
-                ("Cafeteria", "Computer Science Block", 270.0),
-                ("Cafeteria", "Auditorium", 205.0),
-                ("Computer Science Block", "Auditorium", 220.0),
+                ("Main Gate", "Central Library", 150.0),
+                ("Main Gate", "Canteen", 200.0),
+                ("Central Library", "Academic Block A", 110.0),
+                ("Central Library", "Canteen", 140.0),
+                ("Academic Block A", "Sports Ground", 220.0),
+                ("Academic Block A", "Admin Vault", 130.0),
+                ("Canteen", "Hostel Complex", 180.0),
+                ("Canteen", "Admin Vault", 95.0),
+                ("Hostel Complex", "Admin Vault", 160.0),
+                ("Sports Ground", "Admin Vault", 190.0),
             ]
 
             for src_name, dst_name, dist in edges_data:
@@ -141,7 +147,7 @@ def seed_data(db_path: Optional[Union[Path, str]] = None) -> None:
                     "category": "Electronics",
                     "description": "Found silver 15-inch Dell laptop in lab 3.",
                     "serial_tag": "DELL-9821-X",
-                    "loc_name": "Computer Science Block",
+                    "loc_name": "Academic Block A",
                     "cluster_root_id": None,
                     "item_weight": 3,
                     "priority_value": 25,
@@ -155,7 +161,7 @@ def seed_data(db_path: Optional[Union[Path, str]] = None) -> None:
                     "category": "Accessories",
                     "description": "Cobalt blue Hydro Flask insulated water bottle with scratch on lid.",
                     "serial_tag": None,
-                    "loc_name": "Cafeteria",
+                    "loc_name": "Canteen",
                     "cluster_root_id": None,
                     "item_weight": 1,
                     "priority_value": 10,
@@ -169,7 +175,7 @@ def seed_data(db_path: Optional[Union[Path, str]] = None) -> None:
                     "category": "Accessories",
                     "description": "Blue stainless steel bottle found on cafeteria table.",
                     "serial_tag": None,
-                    "loc_name": "Cafeteria",
+                    "loc_name": "Canteen",
                     "cluster_root_id": None,
                     "item_weight": 1,
                     "priority_value": 10,
@@ -240,7 +246,7 @@ def seed_data(db_path: Optional[Union[Path, str]] = None) -> None:
                     "found_title": "Dell Laptop Silver 15-inch",
                     "found_user_roll": "2023EC15",
                     "lcs_score": 0.76,
-                    "spatial_dist": 225.0,
+                    "spatial_dist": 110.0,
                     "confidence_score": 0.88,
                     "assigned_slot": 1,
                     "status": "PENDING",
