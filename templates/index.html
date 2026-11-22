@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Live Feed — Campus Lost & Found{% endblock %}
+
+{% block content %}
+<div class="feed-header">
+    <div class="feed-intro">
+        <h1>Campus Lost & Found Portal</h1>
+        <p class="subtitle">Real-time inventory powered by algorithmic duplicate clustering, string search, and flow matching.</p>
+    </div>
+    <div class="feed-actions">
+        <a href="{{ url_for('items.report_page') }}" class="btn btn-primary">+ Report Item</a>
+    </div>
+</div>
+
+<!-- Search & Algorithmic Controls Section -->
+<div class="search-panel card">
+    <div class="search-form-row">
+        <div class="search-input-group">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" class="search-input" placeholder="Search by title, description, or serial number..." autofocus>
+            <button id="clearSearchBtn" class="btn-clear" style="display: none;">×</button>
+        </div>
+
+        <div class="algo-controls">
+            <div class="control-group">
+                <label for="searchModeSelect">Search Algorithm:</label>
+                <select id="searchModeSelect" class="form-select">
+                    <option value="kmp" selected>Knuth-Morris-Pratt (Unit IV)</option>
+                    <option value="binary">Binary Search by ID (Unit I)</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="sortMethodSelect">Sort Method:</label>
+                <select id="sortMethodSelect" class="form-select">
+                    <option value="merge" selected>Merge Sort (Unit I - Stable)</option>
+                    <option value="quick">Quick Sort (Unit I - In-Place)</option>
+                    <option value="bitonic">Bitonic Sort (Unit IV - Parallel)</option>
+                </select>
+            </div>
+
+            <button id="executeSearchBtn" class="btn btn-primary">Run Search</button>
+        </div>
+    </div>
+
+    <!-- Quick Category & Type Filter Pills -->
+    <div class="filter-pills-row">
+        <span class="filter-label">Filter:</span>
+        <button class="pill active" data-filter="all">All Items</button>
+        <button class="pill" data-filter="LOST">Lost</button>
+        <button class="pill" data-filter="FOUND">Found</button>
+        <span class="pill-divider">|</span>
+        <button class="pill" data-filter="Electronics">Electronics</button>
+        <button class="pill" data-filter="ID/Documents">IDs & Cards</button>
+        <button class="pill" data-filter="Keys">Keys</button>
+        <button class="pill" data-filter="Books">Books</button>
+        <button class="pill" data-filter="Accessories">Accessories</button>
+    </div>
+</div>
+
+<!-- Feed Results Section -->
+<div class="feed-results-container">
+    <div class="results-header">
+        <h3>Active Items (<span id="itemCountDisplay">{{ items|length }}</span>)</h3>
+        <span id="activeAlgoBadge" class="algo-indicator">⚡ Live Feed</span>
+    </div>
+
+    <div id="itemsGrid" class="items-grid">
+        {% for item in items %}
+        <div class="item-card" data-id="{{ item.item_id }}" data-type="{{ item.type }}" data-category="{{ item.category }}">
+            <div class="item-card-header">
+                <span class="item-badge badge-{{ item.type|lower }}">{{ item.type }}</span>
+                <span class="item-category">{{ item.category }}</span>
+                <span class="item-id">#{{ item.item_id }}</span>
+            </div>
+            
+            <h4 class="item-title">{{ item.title }}</h4>
+            <p class="item-description">{{ item.description }}</p>
+
+            <div class="item-meta">
+                <div class="meta-row">
+                    <span class="meta-label">📍 Location:</span>
+                    <span class="meta-value">{{ item.location_name or 'Campus Area' }}</span>
+                </div>
+                {% if item.serial_tag %}
+                <div class="meta-row">
+                    <span class="meta-label">🏷️ Tag / S/N:</span>
+                    <code class="meta-code">{{ item.serial_tag }}</code>
+                </div>
+                {% endif %}
+                <div class="meta-row">
+                    <span class="meta-label">⏱️ Deadline:</span>
+                    <span class="meta-value">{{ item.deadline_hours }}h (Priority: {{ item.priority_value }})</span>
+                </div>
+                <div class="meta-row">
+                    <span class="meta-label">📅 Reported:</span>
+                    <span class="meta-value text-muted">{{ item.created_at }}</span>
+                </div>
+            </div>
+
+            <div class="item-card-footer">
+                <button class="btn btn-outline btn-sm btn-view-matches" onclick="openMatchModal({{ item.item_id }}, '{{ item.type }}', '{{ item.title|escape }}')">
+                    Match Candidates
+                </button>
+                <span class="status-pill status-{{ item.status|lower }}">{{ item.status }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="noResultsAlert" class="no-results-card" style="display: none;">
+        <span class="no-results-icon">📂</span>
+        <h4>No matching items found</h4>
+        <p class="text-muted">Try adjusting your keyword, search algorithm, or filter selection.</p>
+    </div>
+</div>
+
+<!-- Match Candidates Modal -->
+<div id="matchModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3 id="modalTitle">Candidate Matches</h3>
+            <button class="modal-close" onclick="closeMatchModal()">×</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <p class="text-muted">Evaluating similarity via Longest Common Subsequence (LCS) and Floyd-Warshall distance...</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeMatchModal()">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/feed.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Interactive Campus Graph Map — DAA Routing{% endblock %}
+
+{% block content %}
+<div class="map-page-container">
+    <div class="map-header">
+        <h2>Interactive Campus Graph Map</h2>
+        <p class="subtitle">HTML5 Canvas visualization of Dijkstra's Shortest Path, Kruskal's Drop-Box MST, and TSP Security Tour.</p>
+    </div>
+
+    <!-- Map Controls Bar -->
+    <div class="card map-controls-card">
+        <div class="controls-grid">
+            <!-- Dijkstra Routing Controls -->
+            <div class="control-section">
+                <h4>🚶 Dijkstra Walking Directions (Unit II)</h4>
+                <div class="route-selectors">
+                    <label>From:
+                        <select id="mapSrcSelect" class="form-select">
+                            <option value="1">Main Gate (1)</option>
+                            <option value="2">Central Library (2)</option>
+                            <option value="3">Academic Block A (3)</option>
+                            <option value="4">Canteen (4)</option>
+                            <option value="5">Hostel Complex (5)</option>
+                            <option value="6">Sports Ground (6)</option>
+                            <option value="7">Admin Vault (7)</option>
+                        </select>
+                    </label>
+
+                    <label>To:
+                        <select id="mapDstSelect" class="form-select">
+                            <option value="5" selected>Hostel Complex (5)</option>
+                            <option value="1">Main Gate (1)</option>
+                            <option value="2">Central Library (2)</option>
+                            <option value="3">Academic Block A (3)</option>
+                            <option value="4">Canteen (4)</option>
+                            <option value="6">Sports Ground (6)</option>
+                            <option value="7">Admin Vault (7)</option>
+                        </select>
+                    </label>
+
+                    <button id="btnDijkstra" class="btn btn-primary" onclick="runDijkstra()">Compute Path</button>
+                </div>
+            </div>
+
+            <!-- Network Topology Controls -->
+            <div class="control-section">
+                <h4>🌐 Campus Drop-Box Topology</h4>
+                <div class="network-buttons">
+                    <button id="btnKruskal" class="btn btn-outline" onclick="runKruskalMST()">Kruskal MST (Unit II)</button>
+                    <button id="btnTSP" class="btn btn-outline" onclick="runTSPTour()">TSP Patrol Tour (Unit III)</button>
+                    <button id="btnResetMap" class="btn btn-outline" onclick="resetCanvas()">Reset Map</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HTML5 Canvas Container -->
+    <div class="canvas-wrapper card">
+        <div class="canvas-legend">
+            <span><span class="legend-dot" style="background: #2563eb;"></span> Campus Nodes</span>
+            <span><span class="legend-dot" style="background: #94a3b8;"></span> Campus Paths</span>
+            <span><span class="legend-dot" style="background: #10b981;"></span> Shortest Route / MST</span>
+            <span><span class="legend-dot" style="background: #f59e0b;"></span> TSP Security Tour</span>
+        </div>
+        <canvas id="campusCanvas" width="800" height="500"></canvas>
+        <div id="routeInfoBar" class="route-info-bar">
+            <span>Click any action above to trace algorithmic graph routes on the canvas.</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/canvas_map.js') }}"></script>
+{% endblock %}

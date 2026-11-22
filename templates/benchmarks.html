@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}DAA Empirical Complexity Benchmarks{% endblock %}
+
+{% block content %}
+<div class="benchmarks-container">
+    <div class="benchmarks-header">
+        <h2>Empirical Complexity & Runtime Benchmarks</h2>
+        <p class="subtitle">Comparing theoretical Big-O complexity bounds against empirical execution times across Units I–IV ($N = 10 \dots 500$).</p>
+    </div>
+
+    <div class="benchmark-grid">
+        <!-- 1. Sorting Algorithms Benchmark -->
+        <div class="card benchmark-card">
+            <h3>Unit I & IV: Sorting Algorithms</h3>
+            <p class="text-muted">Merge Sort ($O(n \log n)$ stable) vs Quick Sort ($O(n \log n)$ in-place) vs Bitonic Sort ($O(\log^2 n)$ parallel).</p>
+            <div class="table-responsive">
+                <table class="benchmark-table">
+                    <thead>
+                        <tr>
+                            <th>Input Size ($N$)</th>
+                            <th>Merge Sort (ms)</th>
+                            <th>Quick Sort (ms)</th>
+                            <th>Bitonic Sort (ms)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sortBenchmarkBody">
+                        <tr><td colspan="4" class="text-center text-muted">Loading benchmark data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 2. String Matching Benchmark -->
+        <div class="card benchmark-card">
+            <h3>Unit IV: String Matching Algorithms</h3>
+            <p class="text-muted">Knuth-Morris-Pratt ($O(n+m)$) vs Rabin-Karp ($O(n+m)$ avg) vs Naive ($O(n \cdot m)$).</p>
+            <div class="table-responsive">
+                <table class="benchmark-table">
+                    <thead>
+                        <tr>
+                            <th>Pattern Length ($m$)</th>
+                            <th>KMP (ms)</th>
+                            <th>Rabin-Karp (ms)</th>
+                            <th>Naive Brute-Force (ms)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stringBenchmarkBody">
+                        <tr><td colspan="4" class="text-center text-muted">Loading benchmark data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 3. Graph Algorithms Benchmark -->
+        <div class="card benchmark-card">
+            <h3>Unit II & III: Graph Traversal & Optimization</h3>
+            <p class="text-muted">Dijkstra ($O(E \log V)$) vs Floyd-Warshall ($O(V^3)$) vs TSP Branch & Bound ($O(2^n \cdot n^2)$).</p>
+            <div class="table-responsive">
+                <table class="benchmark-table">
+                    <thead>
+                        <tr>
+                            <th>Nodes ($V$)</th>
+                            <th>Dijkstra (ms)</th>
+                            <th>Floyd-Warshall (ms)</th>
+                            <th>TSP Branch & Bound (ms)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="graphBenchmarkBody">
+                        <tr><td colspan="4" class="text-center text-muted">Loading benchmark data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await apiFetch('/campus/api/benchmarks');
+        if (res.status === 'ok') {
+            const data = res.data;
+
+            // 1. Sorting table
+            const sortBody = document.getElementById('sortBenchmarkBody');
+            sortBody.innerHTML = data.sorting.sizes.map((n, i) => `
+                <tr>
+                    <td><strong>${n}</strong></td>
+                    <td><code>${data.sorting.merge_sort[i]} ms</code></td>
+                    <td><code>${data.sorting.quick_sort[i]} ms</code></td>
+                    <td><code>${data.sorting.bitonic_sort[i]} ms</code></td>
+                </tr>
+            `).join('');
+
+            // 2. String matching table
+            const strBody = document.getElementById('stringBenchmarkBody');
+            strBody.innerHTML = data.string_matching.pattern_len.map((m, i) => `
+                <tr>
+                    <td><strong>${m}</strong></td>
+                    <td><span class="text-success">${data.string_matching.kmp[i]} ms</span></td>
+                    <td><span>${data.string_matching.rabin_karp[i]} ms</span></td>
+                    <td><span class="text-danger">${data.string_matching.naive[i]} ms</span></td>
+                </tr>
+            `).join('');
+
+            // 3. Graph table
+            const graphBody = document.getElementById('graphBenchmarkBody');
+            graphBody.innerHTML = data.graphs.nodes.map((v, i) => `
+                <tr>
+                    <td><strong>${v}</strong></td>
+                    <td><span>${data.graphs.dijkstra[i]} ms</span></td>
+                    <td><span>${data.graphs.floyd_warshall[i]} ms</span></td>
+                    <td><span class="text-danger"><strong>${data.graphs.tsp_branch_and_bound[i]} ms</strong></span></td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        console.error("Failed to load benchmarks:", e);
+    }
+});
+</script>
+{% endblock %}

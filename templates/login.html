@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In — Campus Lost & Found{% endblock %}
+
+{% block content %}
+<div class="auth-card-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h2>Campus Portal Login</h2>
+            <p class="text-muted">Sign in to search, report lost valuables, or manage claims</p>
+        </div>
+
+        <form action="{{ url_for('auth.login', next=request.args.get('next')) }}" method="POST" class="auth-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+                <label for="identifier">Roll Number or Campus Email</label>
+                <input type="text" id="identifier" name="identifier" class="form-control" placeholder="e.g. 2024CS01 or admin@campus.edu" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" class="form-control" placeholder="Enter your password" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+        </form>
+
+        <div class="demo-credentials-box">
+            <h4>💡 Demo Quick Credentials (MOCK MODE):</h4>
+            <div class="cred-row">
+                <strong>Admin:</strong> <code>ADM001</code> / <code>Admin@123</code>
+            </div>
+            <div class="cred-row">
+                <strong>Student:</strong> <code>2023CS01</code> / <code>Student@123</code>
+            </div>
+        </div>
+
+        <div class="auth-footer">
+            <p>Don't have an account? <a href="{{ url_for('auth.register') }}">Create an account</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

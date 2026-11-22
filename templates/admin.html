@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Optimization Suite — Campus Lost & Found{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>Administrator Algorithmic Verification Suite</h2>
+        <p class="subtitle">Global Bipartite Matching (Unit IV), Greedy Job Scheduling & Graph Colouring (Unit II), and 0/1 Knapsack Packing (Unit III).</p>
+    </div>
+
+    <!-- Optimization Triggers Grid -->
+    <div class="admin-grid">
+        <!-- 1. Maximum Bipartite Matching Card -->
+        <div class="card admin-action-card">
+            <div class="card-title-row">
+                <span class="card-icon">🔄</span>
+                <h3>Global Bipartite Match</h3>
+            </div>
+            <p class="text-muted">Resolves multi-claimant contention by computing max network flow (Ford-Fulkerson) across OPEN lost and found items.</p>
+            <button id="runBipartiteBtn" class="btn btn-primary" onclick="triggerBipartiteMatch()">Execute Ford-Fulkerson</button>
+            
+            <div id="bipartiteResults" class="admin-result-box" style="display: none;">
+                <h4>Matched Pairs: <span id="bipartiteCount" class="badge-count">0</span></h4>
+                <div id="bipartiteList"></div>
+            </div>
+        </div>
+
+        <!-- 2. Conflict-Free Handover Scheduling Card -->
+        <div class="card admin-action-card">
+            <div class="card-title-row">
+                <span class="card-icon">📅</span>
+                <h3>Handover Slot Scheduling</h3>
+            </div>
+            <p class="text-muted">Sequences claims by deadline priority (Greedy Job Sequencing) and assigns collision-free collection desks via Backtracking Graph Colouring.</p>
+            <button id="runScheduleBtn" class="btn btn-primary" onclick="triggerHandoverScheduling()">Schedule Time Slots</button>
+            
+            <div id="scheduleResults" class="admin-result-box" style="display: none;">
+                <h4>Scheduled Claims (<span id="scheduleTotalPriority">0</span> Priority Saved)</h4>
+                <div id="scheduleList"></div>
+            </div>
+        </div>
+
+        <!-- 3. Security Vault Knapsack Card -->
+        <div class="card admin-action-card">
+            <div class="card-title-row">
+                <span class="card-icon">🔒</span>
+                <h3>Security Vault Bag Packing</h3>
+            </div>
+            <p class="text-muted">Determines optimal high-value item collection bounded by physical transit bag weight capacity (0/1 Knapsack DP).</p>
+            <div class="form-group inline-group">
+                <label for="bagCapacity">Bag Capacity (kg):</label>
+                <input type="number" id="bagCapacity" class="form-control" value="5" min="1" max="20" style="max-width: 100px;">
+                <button id="runVaultBtn" class="btn btn-primary" onclick="triggerVaultPacking()">Pack Vault</button>
+            </div>
+
+            <div id="vaultResults" class="admin-result-box" style="display: none;">
+                <h4>Packed Items (Value: <span id="vaultMaxValue">0</span>)</h4>
+                <div id="vaultList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function triggerBipartiteMatch() {
+    const btn = document.getElementById('runBipartiteBtn');
+    btn.disabled = true;
+    try {
+        const res = await apiFetch('/admin/api/bipartite-match', { method: 'POST' });
+        if (res.status === 'ok') {
+            document.getElementById('bipartiteResults').style.display = 'block';
+            document.getElementById('bipartiteCount').innerText = res.data.max_matches;
+            document.getElementById('bipartiteList').innerHTML = res.data.pairs.map(p => `
+                <div class="pair-row">
+                    <span><strong>Lost:</strong> #${p.lost_id} (${p.lost_title})</span>
+                    <span class="arrow">➔</span>
+                    <span><strong>Found:</strong> #${p.found_id} (${p.found_title})</span>
+                    <span class="score-badge">${Math.round(p.score * 100)}%</span>
+                </div>
+            `).join('');
+        }
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function triggerHandoverScheduling() {
+    const btn = document.getElementById('runScheduleBtn');
+    btn.disabled = true;
+    try {
+        const res = await apiFetch('/admin/api/schedule-handovers', { method: 'POST' });
+        if (res.status === 'ok') {
+            document.getElementById('scheduleResults').style.display = 'block';
+            document.getElementById('scheduleTotalPriority').innerText = res.data.total_priority_saved;
+            document.getElementById('scheduleList').innerHTML = res.data.scheduled_claims.map(c => `
+                <div class="claim-row">
+                    <span><strong>${c.item_title}</strong> (Deadline: ${c.deadline}h)</span>
+                    <span class="slot-badge">${c.slot}</span>
+                </div>
+            `).join('');
+        }
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function triggerVaultPacking() {
+    const capacity = parseInt(document.getElementById('bagCapacity').value, 10);
+    const btn = document.getElementById('runVaultBtn');
+    btn.disabled = true;
+    try {
+        const res = await apiFetch('/admin/api/vault-pack', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ capacity })
+        });
+        if (res.status === 'ok') {
+            document.getElementById('vaultResults').style.display = 'block';
+            document.getElementById('vaultMaxValue').innerText = res.data.max_value;
+            document.getElementById('vaultList').innerHTML = res.data.packed_items.map(i => `
+                <div class="vault-row">
+                    <span>${i.title} (${i.weight} kg)</span>
+                    <span class="badge-count">Priority: ${i.value}</span>
+                </div>
+            `).join('');
+        }
+    } finally {
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}
